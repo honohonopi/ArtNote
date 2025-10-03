@@ -71,6 +71,12 @@ struct ExhibitionFormView: View {
                                         venue = best
                                     }
                                 }
+                                let titleCands = TitleExtractionService.candidates(from: text)
+                                await MainActor.run {
+                                    if title.isEmpty, let best = titleCands.first {
+                                        title = best
+                                    }
+                                }
                             } else {
                                 await MainActor.run {
                                     ocrAlertMessage = "画像の読み込みに失敗しました。"
