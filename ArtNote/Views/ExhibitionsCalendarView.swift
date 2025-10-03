@@ -64,34 +64,58 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     private var eventSpansBySection: [[EventSpan]] = [] // 週ごとの横断ピル（段階1は row=0 固定）
     private var collectionView: UICollectionView!
     private var currentExhibitions: [Exhibition] = [] // 直近のデータを保持
+    private let monthTitleLabel = UILabel()
+    private lazy var monthTitleFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "yyyy年M月"
+        return f
+    }()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        
+
         let layout = MonthGridLayout()
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
         collectionView.register(DayCell.self, forCellWithReuseIdentifier: DayCell.reuseID)
         view.addSubview(collectionView)
+
+        // ★ 先に addSubview だけしておいて、制約はまとめて設定
+        view.addSubview(monthTitleLabel)
+
         collectionView.translatesAutoresizingMaskIntoConstraints = false
+        monthTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // タイトル見た目
+        monthTitleLabel.font = .boldSystemFont(ofSize: 20)
+        monthTitleLabel.textAlignment = .center
+        monthTitleLabel.textColor = .label
+
         NSLayoutConstraint.activate([
+            // タイトルを安全域の上に固定
+            monthTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            monthTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            // コレクションビューはタイトルの下から
+            collectionView.topAnchor.constraint(equalTo: monthTitleLabel.bottomAnchor, constant: 8),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        
+
+        // 左右スワイプ（既存）
         let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
         swipeLeft.direction = .left
         let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
         swipeRight.direction = .right
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
-        
+
         if !currentExhibitions.isEmpty {
-            configure(with: currentExhibitions)
+            configure(with: currentExhibitions) // ← ここでタイトルも更新されるようにします
         }
     }
     
@@ -149,6 +173,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             layout.invalidateLayout()
         }
         collectionView?.reloadData()
+        updateMonthTitle(exhibitions: exhibitions)
     }
     
     
@@ -278,6 +303,12 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             configure(with: currentExhibitions)
         }
     }
+    
+    private func updateMonthTitle(exhibitions: [Exhibition]) {
+        var title = monthTitleFormatter.string(from: monthAnchor)
+        monthTitleLabel.text = title
+    }
+
     
 }
 
