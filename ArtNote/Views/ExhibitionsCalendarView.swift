@@ -71,6 +71,8 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         f.dateFormat = "yyyy年M月"
         return f
     }()
+    private let weekdayHeader = UIStackView()
+    private var weekdayLabels: [UILabel] = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -81,13 +83,31 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
         collectionView.register(DayCell.self, forCellWithReuseIdentifier: DayCell.reuseID)
-        view.addSubview(collectionView)
 
-        // ★ 先に addSubview だけしておいて、制約はまとめて設定
+        // 追加：曜日ヘッダー（7列）
+        weekdayHeader.axis = .horizontal
+        weekdayHeader.alignment = .fill
+        weekdayHeader.distribution = .fillEqually
+        weekdayHeader.spacing = 0
+
+        // ラベル作成
+        weekdayLabels = (0..<7).map { _ in
+            let l = UILabel()
+            l.font = .systemFont(ofSize: 12, weight: .semibold)
+            l.textColor = .secondaryLabel
+            l.textAlignment = .center
+            return l
+        }
+        weekdayLabels.forEach { weekdayHeader.addArrangedSubview($0) }
+
+        // 既存の追加順：タイトル → 曜日 → コレクション
         view.addSubview(monthTitleLabel)
+        view.addSubview(weekdayHeader)
+        view.addSubview(collectionView)
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         monthTitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        weekdayHeader.translatesAutoresizingMaskIntoConstraints = false
 
         // タイトル見た目
         monthTitleLabel.font = .boldSystemFont(ofSize: 20)
@@ -95,12 +115,18 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         monthTitleLabel.textColor = .label
 
         NSLayoutConstraint.activate([
-            // タイトルを安全域の上に固定
+            // タイトル
             monthTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
             monthTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
-            // コレクションビューはタイトルの下から
-            collectionView.topAnchor.constraint(equalTo: monthTitleLabel.bottomAnchor, constant: 8),
+            // 曜日ヘッダー（タイトルの直下に固定）
+            weekdayHeader.topAnchor.constraint(equalTo: monthTitleLabel.bottomAnchor, constant: 6),
+            weekdayHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            weekdayHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            weekdayHeader.heightAnchor.constraint(equalToConstant: 20),
+
+            // カレンダー本体（曜日ヘッダーの下から）
+            collectionView.topAnchor.constraint(equalTo: weekdayHeader.bottomAnchor, constant: -8),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -114,10 +140,13 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
 
+        // 初期描画
+        updateWeekdaySymbols()   // ★ 追加
         if !currentExhibitions.isEmpty {
-            configure(with: currentExhibitions) // ← ここでタイトルも更新されるようにします
+            configure(with: currentExhibitions)
         }
     }
+
     
     func configure(with exhibitions: [Exhibition]) {
         self.currentExhibitions = exhibitions
@@ -173,6 +202,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             layout.invalidateLayout()
         }
         collectionView?.reloadData()
+        updateWeekdaySymbols()
         updateMonthTitle(exhibitions: exhibitions)
     }
     
@@ -307,6 +337,30 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     private func updateMonthTitle(exhibitions: [Exhibition]) {
         var title = monthTitleFormatter.string(from: monthAnchor)
         monthTitleLabel.text = title
+    }
+
+    private func updateWeekdaySymbols() {
+        // 例: ["日","月","火","水","木","金","土"] を firstWeekday に合わせて回転
+        var syms = cal.shortStandaloneWeekdaySymbols  // 日曜始まりが前提の配列
+        let rotate = max(0, cal.firstWeekday - 1)
+        if rotate > 0 {
+            syms = Array(syms.dropFirst(rotate)) + Array(syms.prefix(rotate))
+        }
+
+        for i in 0..<weekdayLabels.count {
+            weekdayLabels[i].text = syms[i]
+
+            // weekend の色（firstWeekday に依存させて計算）
+            // 列 i の実際の曜日番号（1=Sun ... 7=Sat）
+            let weekdayNumber = ((cal.firstWeekday + i - 1) % 7) + 1
+            if weekdayNumber == 1 { // Sunday
+                weekdayLabels[i].textColor = .systemRed
+            } else if weekdayNumber == 7 { // Saturday
+                weekdayLabels[i].textColor = .systemBlue
+            } else {
+                weekdayLabels[i].textColor = .secondaryLabel
+            }
+        }
     }
 
     
