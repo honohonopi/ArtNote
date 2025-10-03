@@ -15,6 +15,9 @@ struct ExhibitionDetailView: View {
     @Query private var notes: [ArtworkNote]
     @State private var showQuick = false
     
+    @State private var showPlanner = false
+    @State private var visitDate = Date()
+    @State private var showAddDone = false
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -59,9 +62,60 @@ struct ExhibitionDetailView: View {
             CardPagingNoteView(exhibition: exhibition)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showPlanner) {
+            NavigationStack {
+                Form {
+                    Section("訪問日時") {
+                        DatePicker("日付", selection: $visitDate,
+                                   in: exhibition.startDate...exhibition.endDate,
+                                   displayedComponents: .date)
+                        DatePicker("開始時刻", selection: $visitDate,
+                                   displayedComponents: .hourAndMinute)
+                    }
+                    Section {
+                        Text("デフォルトで2時間枠を作成します（後からカレンダーで編集可能）。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("予定に追加")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { showPlanner = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("追加") {
+                            Task {
+                                // 権限
+                                let granted = (try? await EventKitService.shared.requestAccess()) ?? false
+                                guard granted else { return }
+                                do {
+                                    try EventKitService.shared.addVisitEvent(
+                                        exhibition: exhibition,
+                                        visitDate: visitDate,
+                                        durationHours: 2
+                                    )
+                                    showPlanner = false
+                                    showAddDone = true
+                                } catch {
+                                    // TODO: エラーハンドリング（アラート等）
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .alert("カレンダーに追加しました", isPresented: $showAddDone) {
+            Button("OK", role: .cancel) { }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(items: [exhibition.title, exhibition.venue]) { Image(systemName: "square.and.arrow.up") }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    // 会期内で初期値をクランプ
+                    visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
+                    showPlanner = true
+                } label: { Label("この日で行く", systemImage: "calendar.badge.plus") }
             }
         }
     }
