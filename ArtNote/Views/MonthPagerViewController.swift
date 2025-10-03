@@ -13,6 +13,17 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     private let cal = Calendar.current
     private var exhibitions: [Exhibition] = []
     private var currentVC: MonthCalendarViewController!
+    private lazy var monthTitleFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "yyyy年M月"
+        return f
+    }()
+    
+    private func postMonthTitle(for month: Date) {
+        let title = monthTitleFormatter.string(from: month)
+        NotificationCenter.default.post(name: .calendarMonthTitleUpdated, object: title)
+    }
 
     init(exhibitions: [Exhibition], initialMonth: Date = Date()) {
         super.init(transitionStyle: .scroll, navigationOrientation: .horizontal)
@@ -27,6 +38,7 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     override func viewDidLoad() {
         super.viewDidLoad()
         setViewControllers([currentVC], direction: .forward, animated: false)
+        postMonthTitle(for: currentVC.currentMonthAnchor)
     }
 
     // MARK: - DataSource (前後の月を生成)
@@ -51,6 +63,14 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
                             transitionCompleted completed: Bool) {
         if completed, let vc = viewControllers?.first as? MonthCalendarViewController {
             currentVC = vc
+            postMonthTitle(for: vc.currentMonthAnchor)
         }
     }
+    
+    func update(exhibitions: [Exhibition]) {
+        self.exhibitions = exhibitions
+        // ページ再生成が必要ならここで対応
+        postMonthTitle(for: currentVC.currentMonthAnchor) // 念のため再通知
+    }
+
 }

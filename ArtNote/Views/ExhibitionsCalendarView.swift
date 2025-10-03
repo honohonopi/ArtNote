@@ -24,18 +24,31 @@ struct WeekSpan {
     let end: Date
 }
 
+extension Notification.Name {
+    static let calendarMonthTitleUpdated = Notification.Name("calendarMonthTitleUpdated")
+}
+
+
 // ============================================================
 // SwiftUI ラッパ（このビューを .sheet などで開く）
 // ============================================================
 struct ExhibitionsCalendarView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var navTitle: String = ""
+
     var body: some View {
         NavigationStack {
             MonthPagerRepresentable()
-                .navigationTitle("会期カレンダー")
+                .navigationTitle(navTitle.isEmpty ? "会期カレンダー" : navTitle)
+                .onReceive(NotificationCenter.default.publisher(for: .calendarMonthTitleUpdated)) { output in
+                    if let title = output.object as? String {
+                        navTitle = title
+                    }
+                }
         }
     }
 }
+
 
 // ============================================================
 // UIViewControllerRepresentable → UIKit カレンダーVC
@@ -64,15 +77,15 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     private var eventSpansBySection: [[EventSpan]] = [] // 週ごとの横断ピル（段階1は row=0 固定）
     private var collectionView: UICollectionView!
     private var currentExhibitions: [Exhibition] = [] // 直近のデータを保持
-    private let monthTitleLabel = UILabel()
+    
+    private let weekdayHeader = UIStackView()
+    private var weekdayLabels: [UILabel] = []
     private lazy var monthTitleFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy年M月"
         return f
     }()
-    private let weekdayHeader = UIStackView()
-    private var weekdayLabels: [UILabel] = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -101,26 +114,16 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         weekdayLabels.forEach { weekdayHeader.addArrangedSubview($0) }
 
         // 既存の追加順：タイトル → 曜日 → コレクション
-        view.addSubview(monthTitleLabel)
         view.addSubview(weekdayHeader)
         view.addSubview(collectionView)
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
-        monthTitleLabel.translatesAutoresizingMaskIntoConstraints = false
         weekdayHeader.translatesAutoresizingMaskIntoConstraints = false
 
-        // タイトル見た目
-        monthTitleLabel.font = .boldSystemFont(ofSize: 20)
-        monthTitleLabel.textAlignment = .center
-        monthTitleLabel.textColor = .label
-
         NSLayoutConstraint.activate([
-            // タイトル
-            monthTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            monthTitleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-
+            
             // 曜日ヘッダー（タイトルの直下に固定）
-            weekdayHeader.topAnchor.constraint(equalTo: monthTitleLabel.bottomAnchor, constant: 6),
+            weekdayHeader.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
             weekdayHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
             weekdayHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             weekdayHeader.heightAnchor.constraint(equalToConstant: 20),
@@ -203,7 +206,6 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         }
         collectionView?.reloadData()
         updateWeekdaySymbols()
-        updateMonthTitle(exhibitions: exhibitions)
     }
     
     
@@ -335,8 +337,6 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     }
     
     private func updateMonthTitle(exhibitions: [Exhibition]) {
-        var title = monthTitleFormatter.string(from: monthAnchor)
-        monthTitleLabel.text = title
     }
 
     private func updateWeekdaySymbols() {
