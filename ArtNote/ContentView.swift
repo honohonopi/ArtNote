@@ -13,8 +13,14 @@ struct ContentView: View {
         TabView {
             HomeView()
                 .tabItem { Label("Home", systemImage: "house") }
+            ExhibitionsCalendarView()
+                .tabItem { Label("Calendar", systemImage: "calendar") }
             ExhibitionsView()
                 .tabItem { Label("Exhibitions", systemImage: "calendar") }
         }
     }
+}
+
+#Preview {
+    ContentView()
 }

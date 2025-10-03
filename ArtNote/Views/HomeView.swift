@@ -13,6 +13,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Query private var upcoming: [Exhibition]
     @State private var showAdd = false
+    @State private var showCalendar = false
     
     init() {
         let now = Date()
@@ -34,16 +35,23 @@ struct HomeView: View {
                         }
                     }
                 }
+                
             }
             .navigationTitle("ArtNote")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAdd = true } label: { Image(systemName: "plus") }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                  Button { showCalendar = true } label: { Image(systemName: "calendar") }
+                }
             }
             .sheet(isPresented: $showAdd) {
                 ExhibitionFormView()
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showCalendar) {
+              ExhibitionsCalendarView()
             }
             .navigationDestination(for: Exhibition.self) { ex in
                 ExhibitionDetailView(exhibition: ex)
