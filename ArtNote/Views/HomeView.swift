@@ -1,0 +1,54 @@
+//
+//  HomeView.swift
+//  ArtNote
+//
+//  Created by Honoka Nishiyama on 2025/10/03.
+//
+
+import SwiftUI
+import SwiftData
+
+
+struct HomeView: View {
+    @Environment(\.modelContext) private var context
+    @Query private var upcoming: [Exhibition]
+    @State private var showAdd = false
+    
+    init() {
+        let now = Date()
+        _upcoming = Query(filter: #Predicate<Exhibition> { ex in ex.endDate >= now },
+                          sort: [SortDescriptor(\.endDate, order: .forward)])
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("まもなく終了") {
+                    ForEach(upcoming.prefix(5)) { ex in
+                        NavigationLink(value: ex) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(ex.title).font(.headline)
+                                Text("\(ex.venue)｜〜 \(ex.endDate, style: .date)")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("ArtNote")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showAdd = true } label: { Image(systemName: "plus") }
+                }
+            }
+            .sheet(isPresented: $showAdd) {
+                ExhibitionFormView()
+                    .presentationDetents([.medium, .large])
+            }
+            .navigationDestination(for: Exhibition.self) { ex in
+                ExhibitionDetailView(exhibition: ex)
+            }
+            .task { try? await ReminderService.shared.requestAuthorization() }
+        }
+    }
+}
