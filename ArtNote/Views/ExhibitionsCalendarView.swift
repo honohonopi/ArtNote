@@ -29,11 +29,9 @@ struct WeekSpan {
 // ============================================================
 struct ExhibitionsCalendarView: View {
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: [SortDescriptor(\Exhibition.startDate, order: .forward)]) private var exhibitions: [Exhibition]
-    
     var body: some View {
         NavigationStack {
-            MonthCalendarRepresentable(exhibitions: exhibitions)
+            MonthPagerRepresentable()
                 .navigationTitle("会期カレンダー")
         }
     }
@@ -64,8 +62,8 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     
     private var daysMatrix: [[Date?]] = []     // 6週×7列（nil は前後月の空き）
     private var eventSpansBySection: [[EventSpan]] = [] // 週ごとの横断ピル（段階1は row=0 固定）
-    
     private var collectionView: UICollectionView!
+    private var currentExhibitions: [Exhibition] = [] // 直近のデータを保持
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -84,9 +82,22 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+        
+        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+        swipeLeft.direction = .left
+        let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+        swipeRight.direction = .right
+        view.addGestureRecognizer(swipeLeft)
+        view.addGestureRecognizer(swipeRight)
+        
+        if !currentExhibitions.isEmpty {
+            configure(with: currentExhibitions)
+        }
     }
     
     func configure(with exhibitions: [Exhibition]) {
+        self.currentExhibitions = exhibitions
+        
         // 1) 月のマトリクス
         daysMatrix = MonthCalendarViewController.buildDaysMatrix(for: monthAnchor, cal: cal)
         let weeks = daysMatrix.count
@@ -253,6 +264,39 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         return (result, max(1, rows.count))
     }
     
+    @objc private func handleSwipe(_ gr: UISwipeGestureRecognizer) {
+        switch gr.direction {
+        case .left:  shiftMonth(+1) // 次の月へ
+        case .right: shiftMonth(-1) // 前の月へ
+        default: break
+        }
+    }
+    
+    private func shiftMonth(_ delta: Int) {
+        if let newAnchor = cal.date(byAdding: .month, value: delta, to: monthAnchor) {
+            monthAnchor = cal.date(from: cal.dateComponents([.year, .month], from: newAnchor))!
+            configure(with: currentExhibitions)
+        }
+    }
+    
+}
+
+extension MonthCalendarViewController {
+    // 月初に正規化
+    fileprivate func startOfMonth(_ d: Date) -> Date {
+        let c = Calendar.current
+        return c.date(from: c.dateComponents([.year, .month], from: d))!
+    }
+    
+    // exhibitions を受けて表示する月を指定できる init
+    convenience init(month: Date, exhibitions: [Exhibition]) {
+        self.init()
+        self.monthAnchor = startOfMonth(month)
+        self.currentExhibitions = exhibitions
+    }
+    
+    // 現在の月を取得（ページャが参照）
+    var currentMonthAnchor: Date { monthAnchor }
 }
 
 // ============================================================
@@ -390,7 +434,7 @@ final class MonthGridLayout: UICollectionViewLayout {
         for a in dayOverflowAttributes where a.frame.intersects(rect) { attrs.append(a) } // ★ 追加
         return attrs
     }
-
+    
     override func layoutAttributesForDecorationView(ofKind elementKind: String, at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
         if elementKind == Self.pillKind {
             return pillAttributes.first { $0.indexPath == indexPath && $0.representedElementKind == elementKind }
@@ -432,8 +476,8 @@ final class DayCell: UICollectionViewCell {
     func configure(text: String, dimmed: Bool, isToday: Bool) {
         label.text = text
         label.textColor = dimmed ? .tertiaryLabel : .label
-//        contentView.layer.cornerRadius = 10
-//        contentView.backgroundColor = isToday ? UIColor.secondarySystemFill : .clear
+        //        contentView.layer.cornerRadius = 10
+        //        contentView.backgroundColor = isToday ? UIColor.secondarySystemFill : .clear
     }
 }
 
