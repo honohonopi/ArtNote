@@ -39,6 +39,8 @@ struct ExhibitionFormView: View {
     @State private var showMissingAlert = false
     @State private var missingAlertMessage: String = ""
     
+    @State private var pendingAlertMessage: String? = nil
+    
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
         let f = DateFormatter()
@@ -66,7 +68,7 @@ struct ExhibitionFormView: View {
                         Label("写真から会期を抽出", systemImage: "text.viewfinder")
                     }
                 }
-                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
+//                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
                 .onChange(of: selectedItem) { _, newItem in
                     guard let item = newItem else { return }
                     Task {
@@ -82,12 +84,6 @@ struct ExhibitionFormView: View {
                                 let vCands = VenueExtractionService.candidates(from: text)
                                 let dCands = DateParsingService.candidates(from: text)
                                 print("Date candidates:", dCands.map { ("\($0.0)", "\($0.1)") })
-                                
-                                // 不足の洗い出し
-                                var missing: [String] = []
-                                if tCands.isEmpty { missing.append("展覧会名") }
-                                if vCands.isEmpty { missing.append("会場名") }
-                                if dCands.isEmpty { missing.append("会期") }
                                 
                                 // まずは既定値として 1件だけなら自動採用
                                 await MainActor.run {
@@ -111,17 +107,24 @@ struct ExhibitionFormView: View {
                                 }
                                 
                                 // 不足アラート（何か1つでも取れなかった）
-                                if !missing.isEmpty {
-                                    await MainActor.run {
-                                        self.missingAlertMessage = "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
+                                let missing = [
+                                    tCands.isEmpty ? "展覧会名" : nil,
+                                    vCands.isEmpty ? "会場名"   : nil,
+                                    dCands.isEmpty ? "会期"     : nil
+                                ].compactMap { $0 }
+                                let message = missing.isEmpty ? nil : "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
+                                
+                                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
+                                await MainActor.run {
+                                    if needsReview {
+                                        // まずはシートだけ出す。アラートは保留
+                                        self.pendingAlertMessage = message
+                                        self.showReviewSheet = true
+                                    } else if let msg = message {
+                                        // シート不要なら即アラート
+                                        self.missingAlertMessage = msg
                                         self.showMissingAlert = true
                                     }
-                                }
-                                
-                                // 候補が複数あれば、確認用シートを開く
-                                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
-                                if needsReview {
-                                    await MainActor.run { self.showReviewSheet = true }
                                 }
                                 
                             } else {
@@ -215,11 +218,19 @@ struct ExhibitionFormView: View {
                                 if let t = selectedTitle { title = t }
                                 if let v = selectedVenue { venue = v }
                                 if dateOptions.indices.contains(selectedDateIndex) {
-                                    let pair = dateOptions[selectedDateIndex]
-                                    startDate = min(pair.0, pair.1)
-                                    endDate   = max(pair.0, pair.1)
+                                    let p = dateOptions[selectedDateIndex]
+                                    startDate = min(p.0, p.1); endDate = max(p.0, p.1)
                                 }
                                 showReviewSheet = false
+                                
+                                if let msg = pendingAlertMessage {
+                                    pendingAlertMessage = nil
+                                    // 少し遅延してから出すと確実
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                        missingAlertMessage = msg
+                                        showMissingAlert = true
+                                    }
+                                }
                             }
                         }
                     }
@@ -227,6 +238,7 @@ struct ExhibitionFormView: View {
             }
             
         }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
     }
     
     private func save() {
