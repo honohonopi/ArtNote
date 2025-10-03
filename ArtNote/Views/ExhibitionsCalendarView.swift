@@ -102,6 +102,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         weekdayHeader.alignment = .fill
         weekdayHeader.distribution = .fillEqually
         weekdayHeader.spacing = 0
+        weekdayHeader.isLayoutMarginsRelativeArrangement = false
 
         // ラベル作成
         weekdayLabels = (0..<7).map { _ in
@@ -119,13 +120,13 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         weekdayHeader.translatesAutoresizingMaskIntoConstraints = false
+        weekdayHeader.leadingAnchor.constraint(equalTo: collectionView.leadingAnchor).isActive = true
+        weekdayHeader.trailingAnchor.constraint(equalTo: collectionView.trailingAnchor).isActive = true
 
         NSLayoutConstraint.activate([
             
             // 曜日ヘッダー（タイトルの直下に固定）
             weekdayHeader.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
-            weekdayHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            weekdayHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
             weekdayHeader.heightAnchor.constraint(equalToConstant: 20),
 
             // カレンダー本体（曜日ヘッダーの下から）
@@ -390,8 +391,8 @@ extension MonthCalendarViewController {
 final class MonthGridLayout: UICollectionViewLayout {
     
     // 表示寸法（固定）
-    private let dayHeight: CGFloat = 84          // ★ 固定セル高さ
-    private let sectionSpacing: CGFloat = 12
+    private let dayHeight: CGFloat = 100          // ★ 固定セル高さ
+    private let sectionSpacing: CGFloat = 0
     private let sectionTopInset: CGFloat = 8
     private let pillHeight: CGFloat = 18
     private let pillVerticalOffset: CGFloat = 28
@@ -411,10 +412,14 @@ final class MonthGridLayout: UICollectionViewLayout {
     static let dayOverflowKind = "DayOverflowDecoration"
     private var dayOverflowAttributes: [UICollectionViewLayoutAttributes] = []
     
+    static let gridKind = "GridDecoration"
+    private var gridAttributes: [UICollectionViewLayoutAttributes] = []
+    
     override init() {
         super.init()
         self.register(EventPillDecorationView.self, forDecorationViewOfKind: Self.pillKind)
         self.register(DayOverflowDecorationView.self, forDecorationViewOfKind: Self.dayOverflowKind)
+        self.register(GridDecorationView.self, forDecorationViewOfKind: Self.gridKind)
     }
     required init?(coder: NSCoder) { fatalError() }
     
@@ -431,13 +436,26 @@ final class MonthGridLayout: UICollectionViewLayout {
         
         itemAttributes.removeAll()
         pillAttributes.removeAll()
-        dayOverflowAttributes.removeAll() // ★ 追加
+        dayOverflowAttributes.removeAll()
+        gridAttributes.removeAll()
         
         let width = CGFloat(cv.bounds.width)
         let dayWidth = floor(width / 7.0)
         
         var y: CGFloat = sectionTopInset
         for section in 0..<weeks {
+            
+            let gridIndexPath = IndexPath(item: 0, section: section)
+            let gridAttr = GridLayoutAttributes(
+                forDecorationViewOfKind: Self.gridKind,
+                with: gridIndexPath
+            )
+            gridAttr.frame = CGRect(x: 0, y: y, width: width, height: dayHeight)
+            gridAttr.zIndex = 10 // セル(0)の背面 or 同等。ピル(1024)より十分下
+            gridAttr.columns = 7
+            gridAttr.lineWidth = 0.5
+            gridAttr.insets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+            gridAttributes.append(gridAttr)
             
             // --- 日セル（固定高さ） ---
             for col in 0..<7 {
@@ -488,7 +506,7 @@ final class MonthGridLayout: UICollectionViewLayout {
                     let size = CGSize(width: 10, height: 12) // ラベル "…" の小さな領域
                     let frame = CGRect(
                         x: cellFrame.minX + 4,
-                        y: cellFrame.maxY,
+                        y: cellFrame.maxY - size.height - 2,
                         width: size.width,
                         height: size.height
                     )
@@ -514,16 +532,21 @@ final class MonthGridLayout: UICollectionViewLayout {
     
     override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
         var attrs: [UICollectionViewLayoutAttributes] = []
+        for a in gridAttributes where a.frame.intersects(rect) { attrs.append(a) }   // ★ 追加
         for a in itemAttributes.values where a.frame.intersects(rect) { attrs.append(a) }
         for a in pillAttributes where a.frame.intersects(rect) { attrs.append(a) }
-        for a in dayOverflowAttributes where a.frame.intersects(rect) { attrs.append(a) } // ★ 追加
+        for a in dayOverflowAttributes where a.frame.intersects(rect) { attrs.append(a) }
         return attrs
     }
-    
+
     override func layoutAttributesForDecorationView(ofKind elementKind: String, at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+        if elementKind == Self.gridKind {
+            return gridAttributes.first { $0.indexPath == indexPath && $0.representedElementKind == elementKind }
+        }
         if elementKind == Self.pillKind {
             return pillAttributes.first { $0.indexPath == indexPath && $0.representedElementKind == elementKind }
-        } else if elementKind == Self.dayOverflowKind {
+        }
+        if elementKind == Self.dayOverflowKind {
             return dayOverflowAttributes.first { $0.indexPath == indexPath && $0.representedElementKind == elementKind }
         }
         return nil
@@ -538,6 +561,64 @@ final class MonthGridLayout: UICollectionViewLayout {
         return oldSize != newBounds.size
     }
 }
+
+final class GridLayoutAttributes: UICollectionViewLayoutAttributes {
+    var columns: Int = 7
+    var lineWidth: CGFloat = 0.5
+    var insets: UIEdgeInsets = .zero
+    override func copy(with zone: NSZone? = nil) -> Any {
+        let c = super.copy(with: zone) as! GridLayoutAttributes
+        c.columns = columns
+        c.lineWidth = lineWidth
+        c.insets = insets
+        return c
+    }
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let o = object as? GridLayoutAttributes else { return false }
+        return super.isEqual(object) && o.columns == columns && o.lineWidth == lineWidth && o.insets == insets
+    }
+}
+
+
+final class GridDecorationView: UICollectionReusableView {
+    override class var layerClass: AnyClass { CAShapeLayer.self }
+
+    override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+        super.apply(layoutAttributes)
+        guard let a = layoutAttributes as? GridLayoutAttributes,
+              let layer = self.layer as? CAShapeLayer else { return }
+
+        let rect = bounds.inset(by: a.insets)
+        let path = UIBezierPath()
+
+        let colW = rect.width / CGFloat(max(1, a.columns))
+        // 外枠
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.close()
+
+        // 縦の内側ライン（列境界）
+        if a.columns > 1 {
+            for i in 1..<a.columns {
+                let x = rect.minX + CGFloat(i) * colW
+                path.move(to: CGPoint(x: x, y: rect.minY))
+                path.addLine(to: CGPoint(x: x, y: rect.maxY))
+            }
+        }
+
+        // 横線は「週の上下枠」だけ。行を増やしたい場合はここで増やす
+        // 例: 上枠は外枠で引いているので下枠のみ二重防止でOK
+
+        layer.path = path.cgPath
+        layer.strokeColor = UIColor.systemGray4.cgColor
+        layer.lineWidth = a.lineWidth
+        layer.fillColor = UIColor.clear.cgColor
+        layer.lineJoin = .round
+    }
+}
+
 
 
 // ============================================================
@@ -582,7 +663,7 @@ final class EventPillDecorationView: UICollectionReusableView {
     private let label = UILabel()
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = UIColor.systemBlue.withAlphaComponent(0.18)
+        backgroundColor = UIColor(red: 0.86, green: 0.92, blue: 1.0, alpha: 1.0)
         layer.cornerRadius = 8
         layer.masksToBounds = true
         
