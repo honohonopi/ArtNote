@@ -65,6 +65,12 @@ struct ExhibitionFormView: View {
                                         showOcrAlert = true
                                     }
                                 }
+                                let venueCands = VenueExtractionService.candidates(from: text)
+                                await MainActor.run {
+                                    if venue.isEmpty, let best = venueCands.first {
+                                        venue = best
+                                    }
+                                }
                             } else {
                                 await MainActor.run {
                                     ocrAlertMessage = "画像の読み込みに失敗しました。"
