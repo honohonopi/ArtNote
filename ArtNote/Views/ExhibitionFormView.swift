@@ -25,6 +25,28 @@ struct ExhibitionFormView: View {
     @State private var ocrAlertMessage: String? = nil
     @State private var showOcrAlert = false
     
+    // 候補と選択
+    @State private var titleOptions: [String] = []
+    @State private var venueOptions: [String] = []
+    @State private var dateOptions: [(Date, Date)] = []
+    
+    @State private var selectedTitle: String?
+    @State private var selectedVenue: String?
+    @State private var selectedDateIndex: Int = 0
+    
+    // UI制御
+    @State private var showReviewSheet = false
+    @State private var showMissingAlert = false
+    @State private var missingAlertMessage: String = ""
+    
+    // 表示用フォーマッタ
+    private var ymdFormatter: DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "yyyy/MM/dd"
+        return f
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -51,32 +73,57 @@ struct ExhibitionFormView: View {
                         do {
                             if let data = try await item.loadTransferable(type: Data.self),
                                let image = UIImage(data: data) {
-
+                                
+                                // 画像 -> テキスト
                                 let text = try await TextRecognitionService.recognizeText(from: image)
-                                if let range = DateParsingService.extractDateRange(from: text) {
-                                    // 既存の DatePicker に反映（会期内の順序保全）
-                                    await MainActor.run {
-                                        startDate = min(range.start, range.end)
-                                        endDate   = max(range.start, range.end)
-                                    }
-                                } else {
-                                    await MainActor.run {
-                                        ocrAlertMessage = "会期らしき日付が見つかりませんでした。日付が写るように再撮影してみてください。"
-                                        showOcrAlert = true
-                                    }
-                                }
-                                let venueCands = VenueExtractionService.candidates(from: text)
+                                
+                                // 各候補を抽出
+                                let tCands = TitleExtractionService.candidates(from: text)
+                                let vCands = VenueExtractionService.candidates(from: text)
+                                let dCands = DateParsingService.candidates(from: text)
+                                print("Date candidates:", dCands.map { ("\($0.0)", "\($0.1)") })
+                                
+                                // 不足の洗い出し
+                                var missing: [String] = []
+                                if tCands.isEmpty { missing.append("展覧会名") }
+                                if vCands.isEmpty { missing.append("会場名") }
+                                if dCands.isEmpty { missing.append("会期") }
+                                
+                                // まずは既定値として 1件だけなら自動採用
                                 await MainActor.run {
-                                    if venue.isEmpty, let best = venueCands.first {
-                                        venue = best
+                                    // 展覧会名
+                                    self.titleOptions = tCands
+                                    if self.title.isEmpty, let first = tCands.first { self.title = first }
+                                    self.selectedTitle = self.title
+                                    
+                                    // 会場
+                                    self.venueOptions = vCands
+                                    if self.venue.isEmpty, let first = vCands.first { self.venue = first }
+                                    self.selectedVenue = self.venue
+                                    
+                                    // 会期
+                                    self.dateOptions = dCands
+                                    if let first = dCands.first {
+                                        self.startDate = min(first.0, first.1)
+                                        self.endDate   = max(first.0, first.1)
+                                        self.selectedDateIndex = 0
                                     }
                                 }
-                                let titleCands = TitleExtractionService.candidates(from: text)
-                                await MainActor.run {
-                                    if title.isEmpty, let best = titleCands.first {
-                                        title = best
+                                
+                                // 不足アラート（何か1つでも取れなかった）
+                                if !missing.isEmpty {
+                                    await MainActor.run {
+                                        self.missingAlertMessage = "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
+                                        self.showMissingAlert = true
                                     }
                                 }
+                                
+                                // 候補が複数あれば、確認用シートを開く
+                                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
+                                if needsReview {
+                                    await MainActor.run { self.showReviewSheet = true }
+                                }
+                                
                             } else {
                                 await MainActor.run {
                                     ocrAlertMessage = "画像の読み込みに失敗しました。"
@@ -91,8 +138,8 @@ struct ExhibitionFormView: View {
                         }
                     }
                 }
-                .alert(ocrAlertMessage ?? "", isPresented: $showOcrAlert) {
-                    Button("OK", role: .cancel) { }
+                .alert(missingAlertMessage, isPresented: $showMissingAlert) {
+                    Button("OK", role: .cancel) {}
                 }
                 Section("目録") {
                     TextField("目録総数（例: 80）", text: $catalogTotalCountStr)
@@ -109,6 +156,76 @@ struct ExhibitionFormView: View {
                         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || venue.isEmpty)
                 }
             }
+            .sheet(isPresented: $showReviewSheet) {
+                NavigationStack {
+                    Form {
+                        // タイトル候補
+                        if !titleOptions.isEmpty {
+                            Section("展覧会名（候補）") {
+                                ForEach(titleOptions, id: \.self) { t in
+                                    HStack {
+                                        Text(t)
+                                        Spacer()
+                                        if selectedTitle == t { Image(systemName: "checkmark") }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { selectedTitle = t }
+                                }
+                            }
+                        }
+                        
+                        // 会場候補
+                        if !venueOptions.isEmpty {
+                            Section("会場名（候補）") {
+                                ForEach(venueOptions, id: \.self) { v in
+                                    HStack {
+                                        Text(v)
+                                        Spacer()
+                                        if selectedVenue == v { Image(systemName: "checkmark") }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { selectedVenue = v }
+                                }
+                            }
+                        }
+                        
+                        // 会期候補
+                        if !dateOptions.isEmpty {
+                            Section("会期（候補）") {
+                                ForEach(Array(dateOptions.enumerated()), id: \.offset) { idx, pair in
+                                    let label = "\(ymdFormatter.string(from: min(pair.0, pair.1))) 〜 \(ymdFormatter.string(from: max(pair.0, pair.1)))"
+                                    HStack {
+                                        Text(label)
+                                        Spacer()
+                                        if selectedDateIndex == idx { Image(systemName: "checkmark") }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { selectedDateIndex = idx }
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("抽出結果を確認")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("閉じる") { showReviewSheet = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("反映") {
+                                if let t = selectedTitle { title = t }
+                                if let v = selectedVenue { venue = v }
+                                if dateOptions.indices.contains(selectedDateIndex) {
+                                    let pair = dateOptions[selectedDateIndex]
+                                    startDate = min(pair.0, pair.1)
+                                    endDate   = max(pair.0, pair.1)
+                                }
+                                showReviewSheet = false
+                            }
+                        }
+                    }
+                }
+            }
+            
         }
     }
     
