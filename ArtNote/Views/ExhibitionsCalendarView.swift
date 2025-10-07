@@ -793,15 +793,19 @@ struct DayExhibitionsListView: View {
                 } else {
                     List {
                         ForEach(exhibitions, id: \.persistentModelID) { ex in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(ex.title).font(.headline)
-                                Text("\(dfRange.string(from: ex.startDate)) 〜 \(dfRange.string(from: ex.endDate))")
-                                    .font(.footnote).foregroundStyle(.secondary)
-                                if !ex.venue.isEmpty {
-                                    Text(ex.venue).font(.footnote)
+                            NavigationLink {
+                                ExhibitionDetailView(exhibition: ex)   // ← 詳細へプッシュ
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(ex.title).font(.headline)
+                                    Text("\(dfRange.string(from: ex.startDate)) 〜 \(dfRange.string(from: ex.endDate))")
+                                        .font(.footnote).foregroundStyle(.secondary)
+                                    if !ex.venue.isEmpty {
+                                        Text(ex.venue).font(.footnote)
+                                    }
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
                         }
                     }
                     .listStyle(.insetGrouped)
