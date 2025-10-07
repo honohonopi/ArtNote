@@ -68,7 +68,7 @@ struct MonthCalendarRepresentable: UIViewControllerRepresentable {
 // ============================================================
 // 1ヶ月グリッド + 横断ピル表示（重なりは未対応）
 // ============================================================
-final class MonthCalendarViewController: UIViewController, UICollectionViewDataSource {
+final class MonthCalendarViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
     
     private let cal = Calendar.current
     private var monthAnchor: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date()))!
@@ -95,7 +95,15 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
+        collectionView.delegate = self
+        collectionView.allowsSelection = true
         collectionView.register(DayCell.self, forCellWithReuseIdentifier: DayCell.reuseID)
+        
+        // タップで indexPath を拾う（選択イベントが来なくても確実に拾う）
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleCollectionTap(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesBegan = false
+        collectionView.addGestureRecognizer(tap)
 
         // 追加：曜日ヘッダー（7列）
         weekdayHeader.axis = .horizontal
@@ -139,8 +147,10 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         // 左右スワイプ（既存）
         let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
         swipeLeft.direction = .left
+        swipeLeft.cancelsTouchesInView = false
         let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
         swipeRight.direction = .right
+        swipeRight.cancelsTouchesInView = false
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
 
@@ -151,6 +161,12 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         }
     }
 
+    @objc private func handleCollectionTap(_ gr: UITapGestureRecognizer) {
+        let point = gr.location(in: collectionView)
+        guard let indexPath = collectionView.indexPathForItem(at: point) else { return }
+        // 既存の didSelect と同じ処理を呼ぶ
+        collectionView(collectionView, didSelectItemAt: indexPath)
+    }
     
     func configure(with exhibitions: [Exhibition]) {
         self.currentExhibitions = exhibitions
@@ -229,6 +245,29 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             cell.configure(text: "", dimmed: true, isToday: false)
         }
         return cell
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        print(indexPath)
+        guard indexPath.section < daysMatrix.count,
+              indexPath.item < 7,
+              let date = daysMatrix[indexPath.section][indexPath.item] else { return }
+        
+        let dayStart = cal.startOfDay(for: date)
+        // 当日を含む展示を抽出
+        let shows = currentExhibitions.filter { ex in
+            let s = cal.startOfDay(for: ex.startDate)
+            let e = cal.startOfDay(for: ex.endDate)
+            return s <= dayStart && dayStart <= e
+        }
+        
+        // SwiftUI の一覧ビューをモーダルで出す
+        let host = UIHostingController(rootView: DayExhibitionsListView(date: dayStart, exhibitions: shows))
+        if let sheet = host.sheetPresentationController {
+            sheet.detents = [.medium(), .large()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(host, animated: true)
     }
     
     // MARK: - Helpers
@@ -663,6 +702,7 @@ final class EventPillDecorationView: UICollectionReusableView {
     private let label = UILabel()
     override init(frame: CGRect) {
         super.init(frame: frame)
+        isUserInteractionEnabled = false
         backgroundColor = UIColor(red: 0.86, green: 0.92, blue: 1.0, alpha: 1.0)
         layer.cornerRadius = 8
         layer.masksToBounds = true
@@ -704,6 +744,7 @@ final class DayOverflowDecorationView: UICollectionReusableView {
     private let label = UILabel()
     override init(frame: CGRect) {
         super.init(frame: frame)
+        isUserInteractionEnabled = false
         backgroundColor = .clear
         label.text = "…"
         label.font = .systemFont(ofSize: 12, weight: .bold)
@@ -720,5 +761,54 @@ final class DayOverflowDecorationView: UICollectionReusableView {
     override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
         super.apply(layoutAttributes)
         // 今回は常に "…" 固定表示（count表示にしたくなったらここで分岐）
+    }
+}
+
+struct DayExhibitionsListView: View {
+    let date: Date
+    let exhibitions: [Exhibition]
+
+    private var dfHeader: DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M月d日（E）"
+        return f
+    }
+    private var dfRange: DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M/d"
+        return f
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if exhibitions.isEmpty {
+                    ContentUnavailableView(
+                        "この日に開催中の展示はありません",
+                        systemImage: "calendar",
+                        description: Text(dfHeader.string(from: date))
+                    )
+                } else {
+                    List {
+                        ForEach(exhibitions, id: \.persistentModelID) { ex in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(ex.title).font(.headline)
+                                Text("\(dfRange.string(from: ex.startDate)) 〜 \(dfRange.string(from: ex.endDate))")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                                if !ex.venue.isEmpty {
+                                    Text(ex.venue).font(.footnote)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle(dfHeader.string(from: date))
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
