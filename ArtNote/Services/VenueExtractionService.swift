@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 会場名推定
 import Foundation
 
 struct VenueExtractionService {

@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 展覧会登録フォーム
 import SwiftUI
 import SwiftData
 import PhotosUI

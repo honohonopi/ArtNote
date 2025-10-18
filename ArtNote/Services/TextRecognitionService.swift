@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// Live Text / OCR
 import UIKit
 import Vision
 

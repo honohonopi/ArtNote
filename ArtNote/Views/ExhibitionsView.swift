@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 展覧会一覧
 import SwiftUI
 import SwiftData
 
@@ -26,7 +27,7 @@ struct ExhibitionsView: View {
                             Text(ex.venue).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text("\(ex.startDate, style: .date) - \(ex.endDate, style: .date)")
+                        Text("\(ex.startDate.ymdString) - \(ex.endDate.ymdString)")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

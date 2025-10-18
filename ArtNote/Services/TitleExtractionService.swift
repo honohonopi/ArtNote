@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 展覧会タイトル推定
 import Foundation
 
 struct TitleExtractionService {

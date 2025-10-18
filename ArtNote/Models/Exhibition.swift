@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 展覧会の基本モデル
 import Foundation
 import SwiftData
 

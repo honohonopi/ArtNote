@@ -5,9 +5,9 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 作品ごとのメモ
 import Foundation
 import SwiftData
-
 
 @Model
 final class ArtworkNote {

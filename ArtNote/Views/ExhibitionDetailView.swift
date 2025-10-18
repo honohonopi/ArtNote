@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// 展覧会詳細
 import SwiftUI
 import SwiftData
 
@@ -32,7 +33,7 @@ struct ExhibitionDetailView: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text(exhibition.title).font(.title3).bold()
-                        Text("\(exhibition.venue) / 〜 \(exhibition.endDate, style: .date)")
+                        Text("\(exhibition.venue) / 〜 \(exhibition.endDate.ymdString)")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()

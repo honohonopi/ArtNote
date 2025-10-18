@@ -5,9 +5,9 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// ホーム画面
 import SwiftUI
 import SwiftData
-
 
 struct HomeView: View {
     @Environment(\.modelContext) private var context
@@ -29,7 +29,7 @@ struct HomeView: View {
                         NavigationLink(value: ex) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(ex.title).font(.headline)
-                                Text("\(ex.venue)｜〜 \(ex.endDate, style: .date)")
+                                Text("\(ex.venue)｜〜 \(ex.endDate.ymdString)")
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }
                         }

@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// クイックメモ
 import SwiftUI
 import SwiftData
 

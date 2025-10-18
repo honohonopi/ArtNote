@@ -5,6 +5,7 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// カレンダー連携
 import EventKit
 
 final class EventKitService {

@@ -5,9 +5,9 @@
 //  Created by Honoka Nishiyama on 2025/10/03.
 //
 
+// リマインダー情報
 import Foundation
 import SwiftData
-
 
 enum ReminderType: String, Codable, CaseIterable, Identifiable {
     case d7 = "D-7"
