@@ -11,8 +11,6 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var context
-    @State private var showAdd = false
-    @State private var showCalendar = false
     
     @Environment(\.scenePhase) private var scenePhase
     
@@ -64,19 +62,6 @@ struct HomeView: View {
                         Label("抽出期間", systemImage: "slider.horizontal.3")
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAdd = true } label: { Image(systemName: "plus") }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showCalendar = true } label: { Image(systemName: "calendar") }
-                }
-            }
-            .sheet(isPresented: $showAdd) {
-                ExhibitionFormView()
-                    .presentationDetents([.medium, .large])
-            }
-            .sheet(isPresented: $showCalendar) {
-                ExhibitionsCalendarView()
             }
             .navigationDestination(for: Exhibition.self) { ex in
                 ExhibitionDetailView(exhibition: ex)
