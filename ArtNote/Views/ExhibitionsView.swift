@@ -16,20 +16,26 @@ struct ExhibitionsView: View {
     init() {
         _exhibitions = Query(sort: [SortDescriptor(\.startDate, order: .forward)])
     }
-
+    
     var body: some View {
         NavigationStack {
             List(exhibitions) { ex in
                 NavigationLink(value: ex) {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(ex.title).font(.body.weight(.semibold))
-                            Text(ex.venue).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("\(ex.startDate.ymdString) - \(ex.endDate.ymdString)")
-                            .font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(ex.title)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(.primary)
+
+                        Text(ex.venue)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Text("\(ex.startDate.ymdString) 〜 \(ex.endDate.ymdString)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
+                    .padding(.vertical, 6)
+                    .opacity(ex.endDate < Date() ? 0.5 : 1.0)
                 }
             }
             .navigationTitle("Exhibitions")
