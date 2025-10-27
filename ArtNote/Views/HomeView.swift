@@ -24,7 +24,7 @@ struct HomeView: View {
     private var cal: Calendar { Calendar.current }
     private var today: Date { cal.startOfDay(for: now) }
     private var upper: Date { cal.date(byAdding: .day, value: soonDays, to: today)! }
-
+    
     private var soonExhibitions: [Exhibition] {
         allExhibitions
             .filter { $0.endDate >= today && $0.endDate < upper } // [今日, 7日後) みたいに半開区間
@@ -34,10 +34,10 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             List {
-                if soonExhibitions.isEmpty {
+                Section(header: Text("まもなく終了（\(soonDays)日以内）")) {
+                    if soonExhibitions.isEmpty {
                         ContentUnavailableView("該当する展示はありません", systemImage: "checkmark.seal")
-                } else {
-                    Section(header: Text("まもなく終了（\(soonDays)日以内）")) {
+                    } else {
                         ForEach(soonExhibitions.prefix(5)) { ex in
                             NavigationLink(value: ex) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -68,7 +68,7 @@ struct HomeView: View {
                     Button { showAdd = true } label: { Image(systemName: "plus") }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                  Button { showCalendar = true } label: { Image(systemName: "calendar") }
+                    Button { showCalendar = true } label: { Image(systemName: "calendar") }
                 }
             }
             .sheet(isPresented: $showAdd) {
@@ -76,7 +76,7 @@ struct HomeView: View {
                     .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showCalendar) {
-              ExhibitionsCalendarView()
+                ExhibitionsCalendarView()
             }
             .navigationDestination(for: Exhibition.self) { ex in
                 ExhibitionDetailView(exhibition: ex)
@@ -85,7 +85,7 @@ struct HomeView: View {
             .onChange(of: scenePhase) { phase in
                 if phase == .active { now = Date() }
             }
-
+            
         }
     }
 }
