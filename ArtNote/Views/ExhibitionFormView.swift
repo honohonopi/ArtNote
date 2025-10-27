@@ -87,7 +87,6 @@ struct ExhibitionFormView: View {
                                 let tCands = TitleExtractionService.candidates(from: text)
                                 let vCands = VenueExtractionService.candidates(from: text)
                                 let dCands = DateParsingService.candidates(from: text)
-                                print("Date candidates:", dCands.map { ("\($0.0)", "\($0.1)") })
                                 
                                 if let dom = DominantColorService.dominantColor(from: image) {
                                     await MainActor.run {

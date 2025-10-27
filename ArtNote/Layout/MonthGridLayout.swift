@@ -117,9 +117,7 @@ final class MonthGridLayout: UICollectionViewLayout {
                     if let ex = exhibitionLookup[span.exhibitionID],
                        let c = ex.uiColor {
                         attr.color = c
-                        print(c)
                     } else {
-                        print("フォールバック")
                         attr.color = UIColor(red: 0.86, green: 0.92, blue: 1.0, alpha: 1.0)
                     }
                     pillAttributes.append(attr)
