@@ -42,6 +42,9 @@ struct ExhibitionFormView: View {
     
     @State private var pendingAlertMessage: String? = nil
     
+    @State private var pickedColor: Color? = nil     // ユーザーが選ぶ（自動抽出で初期化）
+    @State private var autoColor: UIColor? = nil     // 自動抽出の生UIColor（表示にも使える）
+    
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
         let f = DateFormatter()
@@ -66,10 +69,10 @@ struct ExhibitionFormView: View {
                     Button {
                         showPhotoPicker = true
                     } label: {
-                        Label("写真から会期を抽出", systemImage: "text.viewfinder")
+                        Label("写真から情報を抽出", systemImage: "text.viewfinder")
                     }
                 }
-//                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
+                //                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
                 .onChange(of: selectedItem) { _, newItem in
                     guard let item = newItem else { return }
                     Task {
@@ -85,6 +88,13 @@ struct ExhibitionFormView: View {
                                 let vCands = VenueExtractionService.candidates(from: text)
                                 let dCands = DateParsingService.candidates(from: text)
                                 print("Date candidates:", dCands.map { ("\($0.0)", "\($0.1)") })
+                                
+                                if let dom = DominantColorService.dominantColor(from: image) {
+                                    await MainActor.run {
+                                        self.autoColor = dom
+                                        self.pickedColor = Color(dom)   // ColorPicker の初期値
+                                    }
+                                }
                                 
                                 // まずは既定値として 1件だけなら自動採用
                                 await MainActor.run {
@@ -144,6 +154,22 @@ struct ExhibitionFormView: View {
                 }
                 .alert(missingAlertMessage, isPresented: $showMissingAlert) {
                     Button("OK", role: .cancel) {}
+                }
+                Section("色を選択") {
+                    HStack {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(pickedColor ?? (autoColor.map { Color($0) } ?? Color.blue))
+                            .frame(width: 24, height: 24)
+                        
+                        ColorPicker(
+                            "帯の色",
+                            selection: Binding(
+                                get: { pickedColor ?? (autoColor.map { Color($0) } ?? .blue) },
+                                set: { pickedColor = $0 } // 選ばれたら上書き
+                            ),
+                            supportsOpacity: false
+                        )
+                    }
                 }
                 Section("目録") {
                     TextField("目録総数（例: 80）", text: $catalogTotalCountStr)
@@ -250,6 +276,11 @@ struct ExhibitionFormView: View {
                             endDate: endDate,
                             url: URL(string: urlString),
                             catalogTotalCount: total)
+        
+        if let ui = (pickedColor.map { UIColor($0) } ?? autoColor) {
+            ex.setColor(ui)
+        }
+        
         context.insert(ex)
         Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex) }
         dismiss()

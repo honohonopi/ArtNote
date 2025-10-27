@@ -16,6 +16,6 @@ struct MonthPagerRepresentable: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: MonthPagerViewController, context: Context) {
-        // 展示が増減したら必要に応じて再生成したい場合はここで対応（今回はそのまま）
+        uiViewController.update(exhibitions: exhibitions) 
     }
 }

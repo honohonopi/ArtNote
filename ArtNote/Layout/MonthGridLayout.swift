@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SwiftData
 
 final class MonthGridLayout: UICollectionViewLayout {
     
@@ -34,6 +35,8 @@ final class MonthGridLayout: UICollectionViewLayout {
     static let gridKind = "GridDecoration"
     private var gridAttributes: [UICollectionViewLayoutAttributes] = []
     
+    private var exhibitionLookup: [PersistentIdentifier: Exhibition] = [:]
+    
     override init() {
         super.init()
         self.register(EventPillDecorationView.self, forDecorationViewOfKind: Self.pillKind)
@@ -48,6 +51,12 @@ final class MonthGridLayout: UICollectionViewLayout {
         self.eventSpansBySection = eventSpansBySection
         self.maxRowsBySection = maxRowsBySection
     }
+    
+    func setExhibitions(_ exhibitions: [Exhibition]) {
+            exhibitionLookup = Dictionary(uniqueKeysWithValues:
+                exhibitions.map { ($0.persistentModelID, $0) }
+            )
+        }
     
     override func prepare() {
         super.prepare()
@@ -105,6 +114,14 @@ final class MonthGridLayout: UICollectionViewLayout {
                     attr.frame = frame
                     attr.zIndex = 1024
                     attr.title = span.title
+                    if let ex = exhibitionLookup[span.exhibitionID],
+                       let c = ex.uiColor {
+                        attr.color = c
+                        print(c)
+                    } else {
+                        print("フォールバック")
+                        attr.color = UIColor(red: 0.86, green: 0.92, blue: 1.0, alpha: 1.0)
+                    }
                     pillAttributes.append(attr)
                 }
                 

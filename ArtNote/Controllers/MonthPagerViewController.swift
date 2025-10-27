@@ -78,7 +78,9 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     // MARK: - 外部からの更新
     func update(exhibitions: [Exhibition]) {
         self.exhibitions = exhibitions
-        // ページ再生成が必要ならここで対応
+        if let vc = viewControllers?.first as? MonthCalendarViewController {
+            vc.configure(with: exhibitions)
+        }
         postMonthTitle(for: currentVC.currentMonthAnchor) // 念のため再通知
     }
 

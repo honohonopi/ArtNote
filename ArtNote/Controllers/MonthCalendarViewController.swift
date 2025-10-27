@@ -19,6 +19,9 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     
     private let weekdayHeader = UIStackView()
     private var weekdayLabels: [UILabel] = []
+    
+    private var layout: MonthGridLayout!
+    
     private lazy var monthTitleFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
@@ -29,8 +32,8 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-
-        let layout = MonthGridLayout()
+        
+        layout = MonthGridLayout()
         collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
@@ -43,14 +46,14 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         tap.cancelsTouchesInView = false
         tap.delaysTouchesBegan = false
         collectionView.addGestureRecognizer(tap)
-
+        
         // 追加：曜日ヘッダー（7列）
         weekdayHeader.axis = .horizontal
         weekdayHeader.alignment = .fill
         weekdayHeader.distribution = .fillEqually
         weekdayHeader.spacing = 0
         weekdayHeader.isLayoutMarginsRelativeArrangement = false
-
+        
         // ラベル作成
         weekdayLabels = (0..<7).map { _ in
             let l = UILabel()
@@ -60,29 +63,29 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             return l
         }
         weekdayLabels.forEach { weekdayHeader.addArrangedSubview($0) }
-
+        
         // 既存の追加順：タイトル → 曜日 → コレクション
         view.addSubview(weekdayHeader)
         view.addSubview(collectionView)
-
+        
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         weekdayHeader.translatesAutoresizingMaskIntoConstraints = false
         weekdayHeader.leadingAnchor.constraint(equalTo: collectionView.leadingAnchor).isActive = true
         weekdayHeader.trailingAnchor.constraint(equalTo: collectionView.trailingAnchor).isActive = true
-
+        
         NSLayoutConstraint.activate([
             
             // 曜日ヘッダー（タイトルの直下に固定）
             weekdayHeader.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 6),
             weekdayHeader.heightAnchor.constraint(equalToConstant: 20),
-
+            
             // カレンダー本体（曜日ヘッダーの下から）
             collectionView.topAnchor.constraint(equalTo: weekdayHeader.bottomAnchor, constant: -8),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-
+        
         // 左右スワイプ（既存）
         let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
         swipeLeft.direction = .left
@@ -92,24 +95,24 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         swipeRight.cancelsTouchesInView = false
         view.addGestureRecognizer(swipeLeft)
         view.addGestureRecognizer(swipeRight)
-
+        
         // 初期描画
-        updateWeekdaySymbols()   // ★ 追加
+        updateWeekdaySymbols()
         if !currentExhibitions.isEmpty {
+            layout.setExhibitions(currentExhibitions)
             configure(with: currentExhibitions)
         }
     }
-
+    
     @objc private func handleCollectionTap(_ gr: UITapGestureRecognizer) {
         let point = gr.location(in: collectionView)
         guard let indexPath = collectionView.indexPathForItem(at: point) else { return }
-        // 既存の didSelect と同じ処理を呼ぶ
         collectionView(collectionView, didSelectItemAt: indexPath)
     }
     
     func configure(with exhibitions: [Exhibition]) {
         self.currentExhibitions = exhibitions
-        
+        layout.setExhibitions(exhibitions)
         // 1) 月のマトリクス
         daysMatrix = CalendarEventSpanBuilder.buildDaysMatrix(for: monthAnchor, cal: cal)
         let weeks = daysMatrix.count
@@ -139,7 +142,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
                 guard let section = firstWeekStarts.firstIndex(of: w.weekStart) else { continue }
                 let startCol = CalendarEventSpanBuilder.weekdayColumn(for: w.start, cal: cal)
                 let endCol   = CalendarEventSpanBuilder.weekdayColumn(for: w.end,   cal: cal)
-                eventSpansBySection[section].append(EventSpan(startColumn: startCol, endColumn: endCol, row: 0, title: ex.title))
+                eventSpansBySection[section].append(EventSpan(startColumn: startCol, endColumn: endCol, row: 0, title: ex.title, exhibitionID: ex.persistentModelID))
             }
         }
         
@@ -152,14 +155,13 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         }
         
         // 4) レイアウトへ供給（あなたのレイアウトは固定高さ＋最大3行表示）
-        if let layout = collectionView?.collectionViewLayout as? MonthGridLayout {
-            layout.configure(
-                weeks: daysMatrix.count,
-                eventSpansBySection: eventSpansBySection, // [[EventSpan]]（トップレベル型）
-                maxRowsBySection: maxRowsBySection
-            )
-            layout.invalidateLayout()
-        }
+        layout.configure(
+            weeks: daysMatrix.count,
+            eventSpansBySection: eventSpansBySection, // [[EventSpan]]（トップレベル型）
+            maxRowsBySection: maxRowsBySection
+        )
+        layout.invalidateLayout()
+        
         collectionView?.reloadData()
         updateWeekdaySymbols()
     }
@@ -187,7 +189,6 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        print(indexPath)
         guard indexPath.section < daysMatrix.count,
               indexPath.item < 7,
               let date = daysMatrix[indexPath.section][indexPath.item] else { return }
@@ -227,7 +228,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
                 let conflict = rows[r].contains { overlaps($0, range) }
                 if !conflict {
                     rows[r].append(range)
-                    result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title))
+                    result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title, exhibitionID: s.exhibitionID))
                     placed = true
                     break
                 }
@@ -236,7 +237,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             if !placed {
                 rows.append([range])
                 let r = rows.count - 1
-                result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title))
+                result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title, exhibitionID: s.exhibitionID))
             }
         }
         return (result, max(1, rows.count))
@@ -259,7 +260,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     
     private func updateMonthTitle(exhibitions: [Exhibition]) {
     }
-
+    
     private func updateWeekdaySymbols() {
         // 例: ["日","月","火","水","木","金","土"] を firstWeekday に合わせて回転
         var syms = cal.shortStandaloneWeekdaySymbols  // 日曜始まりが前提の配列
@@ -267,10 +268,10 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         if rotate > 0 {
             syms = Array(syms.dropFirst(rotate)) + Array(syms.prefix(rotate))
         }
-
+        
         for i in 0..<weekdayLabels.count {
             weekdayLabels[i].text = syms[i]
-
+            
             // weekend の色（firstWeekday に依存させて計算）
             // 列 i の実際の曜日番号（1=Sun ... 7=Sat）
             let weekdayNumber = ((cal.firstWeekday + i - 1) % 7) + 1
@@ -283,8 +284,6 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             }
         }
     }
-
-    
 }
 
 extension MonthCalendarViewController {

@@ -12,6 +12,7 @@ import SwiftData
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
     @Environment(\.modelContext) private var context
+    @State private var pickedColor: Color = .blue
     
     @Query private var notes: [ArtworkNote]
     @State private var showQuick = false
@@ -56,6 +57,16 @@ struct ExhibitionDetailView: View {
                     }
                     .padding(.vertical, 4)
                 }
+            }
+            
+            // 一旦ここに表示、後で編集画面に入れる
+            Section("色を選択") {
+                ColorPicker("帯の色", selection: $pickedColor, supportsOpacity: false)
+                    .onChange(of: pickedColor) { newVal in
+                        let ui = UIColor(newVal)
+                        exhibition.setColor(ui)
+                        try? context.save()
+                    }
             }
         }
         .navigationTitle("詳細")
@@ -117,6 +128,13 @@ struct ExhibitionDetailView: View {
                     visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
                     showPlanner = true
                 } label: { Label("この日で行く", systemImage: "calendar.badge.plus") }
+            }
+        }
+        .onAppear {
+            if let c = exhibition.uiColor {
+                pickedColor = Color(c)
+            } else {
+                pickedColor = .blue
             }
         }
     }

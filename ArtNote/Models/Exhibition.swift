@@ -6,7 +6,7 @@
 //
 
 // 展覧会の基本モデル
-import Foundation
+import SwiftUI
 import SwiftData
 
 @Model
@@ -20,6 +20,10 @@ final class Exhibition {
     var posterImageId: String?
     var tags: [String]
     var catalogTotalCount: Int?
+    
+    var colorR: Int16?
+    var colorG: Int16?
+    var colorB: Int16?
     
     init(id: String = UUID().uuidString,
          title: String,
@@ -39,5 +43,22 @@ final class Exhibition {
         self.posterImageId = posterImageId
         self.tags = tags
         self.catalogTotalCount = catalogTotalCount
+    }
+    
+    var uiColor: UIColor? {
+        guard let r = colorR, let g = colorG, let b = colorB else { return nil }
+        return UIColor(red: CGFloat(r)/255, green: CGFloat(g)/255, blue: CGFloat(b)/255, alpha: 1)
+    }
+    var swiftUIColor: Color? {
+        guard let c = uiColor else { return nil }
+        return Color(cgColor: c.cgColor)
+    }
+    
+    func setColor(_ color: UIColor) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 1
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        colorR = Int16((r * 255).rounded())
+        colorG = Int16((g * 255).rounded())
+        colorB = Int16((b * 255).rounded())
     }
 }
