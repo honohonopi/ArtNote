@@ -134,6 +134,9 @@ struct ExhibitionDetailView: View {
                         DatePicker("日付", selection: $visitDate,
                                    in: exhibition.startDate...exhibition.endDate,
                                    displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .environment(\.locale, Locale(identifier: "ja_JP"))
+                            .environment(\.calendar, Calendar(identifier: .gregorian))
                         DatePicker("開始時刻", selection: $visitDate,
                                    displayedComponents: .hourAndMinute)
                     }
