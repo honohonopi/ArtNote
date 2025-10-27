@@ -216,7 +216,13 @@ private struct ExhibitionEditSheet: View {
                     TextField("展覧会名", text: $title)
                     TextField("会場", text: $venue)
                     DatePicker("開始日", selection: $startDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
+                        .environment(\.calendar, Calendar(identifier: .gregorian))
                     DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
+                        .environment(\.calendar, Calendar(identifier: .gregorian))
                 }
                 Section("帯の色") {
                     ColorPicker("色", selection: $color, supportsOpacity: false)
