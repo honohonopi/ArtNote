@@ -10,4 +10,5 @@ import SwiftUI
 extension Notification.Name {
     static let calendarDayTapped = Notification.Name("calendarDayTapped")
     static let calendarMonthTitleUpdated = Notification.Name("calendarMonthTitleUpdated")
+    static let MKMapViewRegionDidChange = Notification.Name("MKMapViewRegionDidChange")
 }

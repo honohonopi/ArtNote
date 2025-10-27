@@ -8,6 +8,7 @@
 // 展覧会の基本モデル
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 @Model
 final class Exhibition {
@@ -24,6 +25,9 @@ final class Exhibition {
     var colorR: Int16?
     var colorG: Int16?
     var colorB: Int16?
+    
+    var latitude: Double?
+    var longitude: Double?
     
     init(id: String = UUID().uuidString,
          title: String,
@@ -60,5 +64,14 @@ final class Exhibition {
         colorR = Int16((r * 255).rounded())
         colorG = Int16((g * 255).rounded())
         colorB = Int16((b * 255).rounded())
+    }
+    
+    var hasCoordinate: Bool { latitude != nil && longitude != nil }
+    var coordinate: CLLocationCoordinate2D? {
+        guard let lat = latitude, let lon = longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+    func setCoordinate(_ c: CLLocationCoordinate2D) {
+        latitude = c.latitude; longitude = c.longitude
     }
 }

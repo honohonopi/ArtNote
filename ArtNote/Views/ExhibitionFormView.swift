@@ -9,6 +9,8 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import CoreLocation
+import MapKit
 
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
@@ -42,8 +44,24 @@ struct ExhibitionFormView: View {
     
     @State private var pendingAlertMessage: String? = nil
     
-    @State private var pickedColor: Color? = nil     // ユーザーが選ぶ（自動抽出で初期化）
-    @State private var autoColor: UIColor? = nil     // 自動抽出の生UIColor（表示にも使える）
+    @State private var pickedColor: Color? = nil
+    @State private var autoColor: UIColor? = nil
+    
+    @State private var mapPickerPayload: MapPickerPayload? = nil
+    @State private var tempCoordinate: CLLocationCoordinate2D?
+    
+    @State private var previewRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+    )
+    
+    @State private var mapInitialQuery: String? = nil
+    @State private var addressLine = ""
+    
+    struct MapPickerPayload: Identifiable {
+        let id = UUID()
+        let query: String
+    }
     
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
@@ -59,6 +77,28 @@ struct ExhibitionFormView: View {
                 Section("基本情報") {
                     TextField("展覧会名", text: $title)
                     TextField("会場", text: $venue)
+                        .onSubmit {
+                            triggerGeocoding()
+                        }
+                    HStack(spacing: 8) {
+                        TextField("会場住所（任意）", text: $addressLine)   // ← 住所用の @State を持っていなければ追加
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                        Button {
+                            // 住所があれば住所、なければ会場名。空なら何もしない
+                            let q = addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? venue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            : addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !q.isEmpty else { return }
+                            mapPickerPayload = MapPickerPayload(query: q)   // ← これでシートを開く
+                        } label: {
+                            Image(systemName: "mappin.and.ellipse")
+                                .imageScale(.large)
+                                .foregroundStyle(.blue)   // ← 青に
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("地図で位置を選ぶ")
+                    }
                     DatePicker("開始日", selection: $startDate, displayedComponents: .date)
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
@@ -78,7 +118,6 @@ struct ExhibitionFormView: View {
                         Label("写真から情報を抽出", systemImage: "text.viewfinder")
                     }
                 }
-                //                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
                 .onChange(of: selectedItem) { _, newItem in
                     guard let item = newItem else { return }
                     Task {
@@ -268,7 +307,25 @@ struct ExhibitionFormView: View {
                     }
                 }
             }
-            
+            .sheet(item: $mapPickerPayload) { payload in
+                NavigationStack {
+                    MapPickerView(seed: tempCoordinate, initialQuery: payload.query) { pickedCoord, pickedAddress in
+                        // 座標を反映
+                        tempCoordinate = pickedCoord
+                        previewRegion.center = pickedCoord
+                        previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                        // 住所を反映（未入力なら反映／常に上書き、好みで）
+                        if let addr = pickedAddress, !addr.isEmpty {
+                            if addressLine.isEmpty {
+                                addressLine = addr
+                            } else {
+                                // 常に上書きしたいなら次の1行に変更
+                                // addressLine = addr
+                            }
+                        }
+                    }
+                }
+            }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
     }
@@ -281,7 +338,9 @@ struct ExhibitionFormView: View {
                             endDate: endDate,
                             url: URL(string: urlString),
                             catalogTotalCount: total)
-        
+        if let c = tempCoordinate {
+            ex.setCoordinate(c)
+        }
         if let ui = (pickedColor.map { UIColor($0) } ?? autoColor) {
             ex.setColor(ui)
         }
@@ -289,5 +348,23 @@ struct ExhibitionFormView: View {
         context.insert(ex)
         Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex) }
         dismiss()
+    }
+    
+    private func triggerGeocoding() {
+        Task {
+            let v = venue.trimmingCharacters(in: .whitespaces)
+            guard !v.isEmpty else { return }
+            if let c = try? await VenueGeocodingService.geocode(v) {
+                await MainActor.run {
+                    self.tempCoordinate = c
+                    self.previewRegion.center = c                   // ← これを忘れず
+                    self.previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                }
+            } else {
+                await MainActor.run {
+                    self.mapInitialQuery = v
+                }
+            }
+        }
     }
 }
