@@ -8,6 +8,8 @@
 // 展覧会詳細
 import SwiftUI
 import SwiftData
+import MapKit
+import CoreLocation
 
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
@@ -26,6 +28,8 @@ struct ExhibitionDetailView: View {
     @State private var visitDate = Date()
     @State private var showAddDone = false
     
+    @State private var showMapChoice = false
+    
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
         let exId = exhibition.id
@@ -35,21 +39,51 @@ struct ExhibitionDetailView: View {
     
     var body: some View {
         List {
-            Section("") {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(exhibition.title).font(.title3).bold()
-                        Text("\(exhibition.venue) / 〜 \(exhibition.endDate.ymdString)")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button { showQuick = true } label: {
-                        Label("鑑賞モード", systemImage: "square.and.pencil")
-                    }
-                    .buttonStyle(.bordered)
+            Section {
+                Button {
+                    showQuick = true
+                } label: {
+                    Label("鑑賞モードを開始", systemImage: "square.and.pencil")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .foregroundColor(.white)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
-            
+            Section {
+                Text(exhibition.title)
+                    .font(.title2).bold()
+                    .padding(.bottom, 2)
+                // 会場＋地図アイコン（ここから Apple / Google を選べる）
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(exhibition.venue)
+                        .font(.subheadline)
+
+                    if exhibition.coordinate != nil {
+                        Button {
+                            showMapChoice = true
+                        } label: {
+                            Image(systemName: "mappin.circle")
+                                .imageScale(.medium)
+                                .foregroundStyle(.blue)   // ← 目に入る青
+                                .accessibilityLabel("地図アプリで開く")
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // 座標未設定の見せ方（任意）
+                        Image(systemName: "mappin.slash.circle")
+                            .imageScale(.medium)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text("\(exhibition.startDate.ymdString) 〜 \(exhibition.endDate.ymdString)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+            } header: {
+                Text("概要")
+            }
             Section("メモ（\(notes.count)）") {
                 ForEach(notes) { n in
                     VStack(alignment: .leading, spacing: 6) {
@@ -64,6 +98,7 @@ struct ExhibitionDetailView: View {
                 }
             }
         }
+
         .navigationTitle("詳細")
         .sheet(isPresented: $showQuick) {
             CardPagingNoteView(exhibition: exhibition)
@@ -113,7 +148,7 @@ struct ExhibitionDetailView: View {
             Button("OK", role: .cancel) { }
         }
         .sheet(isPresented: $showEdit) {
-            ExhibitionEditSheet(exhibition: exhibition)
+            ExhibitionEditView(exhibition: exhibition)
                 .presentationDetents([.large]) // 好みで .medium も可
         }
         .toolbar {
@@ -135,6 +170,24 @@ struct ExhibitionDetailView: View {
                         showEdit = true
                     } label: {
                         Label("編集", systemImage: "pencil")
+                    }
+                    if let c = exhibition.coordinate {
+                        Button {
+                            openInAppleMaps(c, name: exhibition.title)
+                        } label: {
+                            Label("地図で開く（Apple）", systemImage: "map")
+                        }
+                        
+                        Button {
+                            openInGoogleMaps(c, name: exhibition.title)
+                        } label: {
+                            Label("経路案内（Google）", systemImage: "car")
+                        }
+                    } else {
+                        // 座標未セットなら押せない項目で視認性維持
+                        Label("位置情報未設定", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.secondary)
+                            .disabled(true)
                     }
                     Divider()
                     // 削除
@@ -163,6 +216,26 @@ struct ExhibitionDetailView: View {
             Button("削除", role: .destructive) { deleteExhibition() }
             Button("キャンセル", role: .cancel) {}
         }
+        .confirmationDialog(
+            "地図で開く",
+            isPresented: $showMapChoice,
+            titleVisibility: .visible
+        ) {
+            if let c = exhibition.coordinate {
+                Button {
+                    openInAppleMaps(c, name: exhibition.title)
+                } label: {
+                    Text("Appleマップで開く")
+                }
+                Button {
+                    openInGoogleMaps(c, name: exhibition.title)
+                } label: {
+                    Text("Googleマップで経路案内")
+                }
+            } else {
+                Button("位置情報が未設定です", role: .cancel) {}
+            }
+        }
     }
     
     private func deleteExhibition() {
@@ -186,68 +259,26 @@ struct ExhibitionDetailView: View {
             print("Delete failed:", error)
         }
     }
-}
-
-private struct ExhibitionEditSheet: View {
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @State private var title: String
-    @State private var venue: String
-    @State private var startDate: Date
-    @State private var endDate: Date
-    @State private var color: Color
-
-    let exhibition: Exhibition
-
-    init(exhibition: Exhibition) {
-        self.exhibition = exhibition
-        _title = State(initialValue: exhibition.title)
-        _venue = State(initialValue: exhibition.venue)
-        _startDate = State(initialValue: exhibition.startDate)
-        _endDate = State(initialValue: exhibition.endDate)
-        if let ui = exhibition.uiColor { _color = State(initialValue: Color(ui)) }
-        else { _color = State(initialValue: .blue) }
+    
+    // Appleマップ（標準）で開く
+    private func openInAppleMaps(_ coord: CLLocationCoordinate2D, name: String) {
+        let placemark = MKPlacemark(coordinate: coord)
+        let mapItem = MKMapItem(placemark: placemark)
+        mapItem.name = name
+        mapItem.openInMaps(launchOptions: [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ])
     }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("基本情報") {
-                    TextField("展覧会名", text: $title)
-                    TextField("会場", text: $venue)
-                    DatePicker("開始日", selection: $startDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "ja_JP"))
-                        .environment(\.calendar, Calendar(identifier: .gregorian))
-                    DatePicker("終了日", selection: $endDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "ja_JP"))
-                        .environment(\.calendar, Calendar(identifier: .gregorian))
-                }
-                Section("帯の色") {
-                    ColorPicker("色", selection: $color, supportsOpacity: false)
-                }
-            }
-            .navigationTitle("編集")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        // 日付の整合性
-                        if endDate < startDate { endDate = startDate }
-                        // モデルへ反映
-                        exhibition.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                        exhibition.venue = venue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        exhibition.startDate = startDate
-                        exhibition.endDate = endDate
-                        exhibition.setColor(UIColor(color))
-                        try? context.save()        // 即保存 → @Query 経由でUI更新
-                        dismiss()
-                    }
-                }
-            }
+    
+    // Googleマップで経路案内
+    private func openInGoogleMaps(_ coord: CLLocationCoordinate2D, name: String) {
+        let urlStr = "comgooglemaps://?daddr=\(coord.latitude),\(coord.longitude)&directionsmode=driving"
+        if let url = URL(string: urlStr), UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        } else {
+            // Google Maps が無ければWebにフォールバック
+            let webURL = URL(string: "https://maps.google.com/?q=\(name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
+            UIApplication.shared.open(webURL)
         }
     }
 }
