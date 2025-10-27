@@ -71,6 +71,46 @@ struct ExhibitionFormView: View {
         return f
     }
     
+    private func save() {
+        print(addressLine.trimmingCharacters(in: .whitespacesAndNewlines))
+        let total = Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
+        let ex = Exhibition(title: title,
+                            venue: venue,
+                            address: addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
+                            startDate: startDate,
+                            endDate: endDate,
+                            url: URL(string: urlString),
+                            catalogTotalCount: total)
+        if let c = tempCoordinate {
+            ex.setCoordinate(c)
+        }
+        if let ui = (pickedColor.map { UIColor($0) } ?? autoColor) {
+            ex.setColor(ui)
+        }
+        
+        context.insert(ex)
+        Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex) }
+        dismiss()
+    }
+    
+    private func triggerGeocoding() {
+        Task {
+            let v = venue.trimmingCharacters(in: .whitespaces)
+            guard !v.isEmpty else { return }
+            if let c = try? await VenueGeocodingService.geocode(v) {
+                await MainActor.run {
+                    self.tempCoordinate = c
+                    self.previewRegion.center = c                   // ← これを忘れず
+                    self.previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                }
+            } else {
+                await MainActor.run {
+                    self.mapInitialQuery = v
+                }
+            }
+        }
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -326,45 +366,5 @@ struct ExhibitionFormView: View {
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
-    }
-    
-    private func save() {
-        print(addressLine.trimmingCharacters(in: .whitespacesAndNewlines))
-        let total = Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
-        let ex = Exhibition(title: title,
-                            venue: venue,
-                            address: addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
-                            startDate: startDate,
-                            endDate: endDate,
-                            url: URL(string: urlString),
-                            catalogTotalCount: total)
-        if let c = tempCoordinate {
-            ex.setCoordinate(c)
-        }
-        if let ui = (pickedColor.map { UIColor($0) } ?? autoColor) {
-            ex.setColor(ui)
-        }
-        
-        context.insert(ex)
-        Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex) }
-        dismiss()
-    }
-    
-    private func triggerGeocoding() {
-        Task {
-            let v = venue.trimmingCharacters(in: .whitespaces)
-            guard !v.isEmpty else { return }
-            if let c = try? await VenueGeocodingService.geocode(v) {
-                await MainActor.run {
-                    self.tempCoordinate = c
-                    self.previewRegion.center = c                   // ← これを忘れず
-                    self.previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                }
-            } else {
-                await MainActor.run {
-                    self.mapInitialQuery = v
-                }
-            }
-        }
     }
 }

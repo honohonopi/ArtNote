@@ -37,6 +37,29 @@ struct ExhibitionDetailView: View {
                        sort: [SortDescriptor(\.catalogNumber, order: .forward)])
     }
     
+    private func encoded(_ s: String) -> String {
+        s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
+    }
+
+    // Appleマップ：住所で開く（経路）
+    private func openInAppleMaps(address: String) {
+        // 経路指定（出発地は現在地）
+        let url = URL(string: "http://maps.apple.com/?daddr=\(encoded(address))")!
+        UIApplication.shared.open(url)
+    }
+
+    // Googleマップ：住所で経路案内（アプリ→無ければWeb）
+    private func openInGoogleMaps(address: String) {
+        let scheme = "comgooglemaps://?daddr=\(encoded(address))&directionsmode=driving"
+        if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        } else {
+            // Web フォールバック（Google公式の Directions URL）
+            let web = "https://www.google.com/maps/dir/?api=1&destination=\(encoded(address))"
+            UIApplication.shared.open(URL(string: web)!)
+        }
+    }
+    
     var body: some View {
         List {
             Section {
@@ -59,8 +82,8 @@ struct ExhibitionDetailView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(exhibition.venue)
                         .font(.subheadline)
-
-                    if exhibition.coordinate != nil {
+                    
+                    if (exhibition.address?.isEmpty == false) || (exhibition.coordinate != nil) {
                         Button {
                             showMapChoice = true
                         } label: {
@@ -98,7 +121,7 @@ struct ExhibitionDetailView: View {
                 }
             }
         }
-
+        
         .navigationTitle("詳細")
         .sheet(isPresented: $showQuick) {
             CardPagingNoteView(exhibition: exhibition)
@@ -203,18 +226,28 @@ struct ExhibitionDetailView: View {
             isPresented: $showMapChoice,
             titleVisibility: .visible
         ) {
-            if let c = exhibition.coordinate {
+            if let addr = exhibition.address, !addr.isEmpty {
+                Button {
+                    openInAppleMaps(address: addr)
+                } label: { Text("Appleマップで開く") }
+                Button {
+                    openInGoogleMaps(address: addr)
+                } label: { Text("Googleマップで経路案内") }
+            } else if let c = exhibition.coordinate {
                 Button {
                     openInAppleMaps(c, name: exhibition.title)
-                } label: {
-                    Text("Appleマップで開く")
-                }
+                } label: { Text("Appleマップで開く") }
                 Button {
                     openInGoogleMaps(c, name: exhibition.title)
-                } label: {
-                    Text("Googleマップで経路案内")
-                }
+                } label: { Text("Googleマップで経路案内") }
             } else {
+                // 最後の砦：会場名で検索 または 位置情報未設定の案内
+                Button {
+                    openInAppleMaps(address: exhibition.venue)
+                } label: { Text("Appleマップで開く") }
+                Button {
+                    openInGoogleMaps(address: exhibition.venue)
+                } label: { Text("Googleマップで経路案内") }
                 Button("位置情報が未設定です", role: .cancel) {}
             }
         }
@@ -264,3 +297,4 @@ struct ExhibitionDetailView: View {
         }
     }
 }
+
