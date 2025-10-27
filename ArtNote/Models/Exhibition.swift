@@ -28,10 +28,12 @@ final class Exhibition {
     
     var latitude: Double?
     var longitude: Double?
+    var address: String?
     
     init(id: String = UUID().uuidString,
          title: String,
          venue: String,
+         address: String? = nil,
          startDate: Date,
          endDate: Date,
          url: URL? = nil,
@@ -41,6 +43,7 @@ final class Exhibition {
         self.id = id
         self.title = title
         self.venue = venue
+        self.address = address
         self.startDate = startDate
         self.endDate = endDate
         self.url = url

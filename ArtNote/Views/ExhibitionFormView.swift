@@ -319,8 +319,6 @@ struct ExhibitionFormView: View {
                             if addressLine.isEmpty {
                                 addressLine = addr
                             } else {
-                                // 常に上書きしたいなら次の1行に変更
-                                // addressLine = addr
                             }
                         }
                     }
@@ -331,9 +329,11 @@ struct ExhibitionFormView: View {
     }
     
     private func save() {
+        print(addressLine.trimmingCharacters(in: .whitespacesAndNewlines))
         let total = Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
         let ex = Exhibition(title: title,
                             venue: venue,
+                            address: addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
                             startDate: startDate,
                             endDate: endDate,
                             url: URL(string: urlString),
