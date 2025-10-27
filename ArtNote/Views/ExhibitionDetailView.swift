@@ -171,24 +171,6 @@ struct ExhibitionDetailView: View {
                     } label: {
                         Label("編集", systemImage: "pencil")
                     }
-                    if let c = exhibition.coordinate {
-                        Button {
-                            openInAppleMaps(c, name: exhibition.title)
-                        } label: {
-                            Label("地図で開く（Apple）", systemImage: "map")
-                        }
-                        
-                        Button {
-                            openInGoogleMaps(c, name: exhibition.title)
-                        } label: {
-                            Label("経路案内（Google）", systemImage: "car")
-                        }
-                    } else {
-                        // 座標未セットなら押せない項目で視認性維持
-                        Label("位置情報未設定", systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.secondary)
-                            .disabled(true)
-                    }
                     Divider()
                     // 削除
                     Button(role: .destructive) {
