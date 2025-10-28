@@ -12,49 +12,37 @@ import SwiftData
 struct CardPagingNoteView: View {
     let exhibition: Exhibition
     @Environment(\.modelContext) private var context
-
-    // ページインデックス（0始まり）
+    @Environment(\.dismiss) private var dismiss
+    
     @State private var index: Int = 0
-    // 表示する番号の配列（1..N）。未設定なら仮で1..50
+    @State private var saveSignal: Int = 0
     private var numbers: [Int] {
         if let n = exhibition.catalogTotalCount, n > 0 { return Array(1...n) }
         return Array(1...50)
     }
-
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
                 // インジケータ
                 Text("\(exhibition.title)")
                     .font(.headline).lineLimit(1).minimumScaleFactor(0.8)
-                Text("目録 \(numbers[index]) / \(numbers.count)")
-                    .font(.subheadline).foregroundStyle(.secondary)
-
+                
                 TabView(selection: $index) {
                     ForEach(Array(numbers.enumerated()), id: \.offset) { i, num in
-                        NoteCard(exhibitionId: exhibition.id, catalogNumber: String(num))
-                            .padding(.horizontal, 16)
-                            .tag(i)
+                        NoteCard(
+                            exhibitionId: exhibition.id,
+                            catalogNumber: String(num),
+                            saveSignal: $saveSignal
+                        )
+                        .padding(.horizontal, 16)
+                        .tag(i)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(maxHeight: 360)
-
-                HStack(spacing: 12) {
-                    Button {
-                        index = max(index - 1, 0)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: { Label("前へ", systemImage: "chevron.left") }
-                    .buttonStyle(.bordered)
-
-                    Button {
-                        index = min(index + 1, numbers.count - 1)
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    } label: { Label("次へ", systemImage: "chevron.right") }
-                    .buttonStyle(.borderedProminent)
-                }
+                .frame(maxHeight: 420)
                 .padding(.top, 4)
-
+                
                 Spacer()
             }
             .padding()
@@ -62,8 +50,9 @@ struct CardPagingNoteView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        index = min(index + 1, numbers.count - 1)
-                    } label: { Image(systemName: "arrow.right.circle") }
+                        saveSignal &+= 1
+                        dismiss()
+                    } label: { Text("完了") }
                 }
             }
         }
@@ -74,21 +63,23 @@ struct CardPagingNoteView: View {
 private struct NoteCard: View {
     let exhibitionId: String
     let catalogNumber: String
-
+    @Binding var saveSignal: Int
+    
     @Environment(\.modelContext) private var context
     @Query private var existing: [ArtworkNote]
-
+    
     @State private var text: String = ""
     @State private var saved: Bool = false
-
-    init(exhibitionId: String, catalogNumber: String) {
+    
+    init(exhibitionId: String, catalogNumber: String, saveSignal: Binding<Int>) {
         self.exhibitionId = exhibitionId
         self.catalogNumber = catalogNumber
+        _saveSignal = saveSignal
         _existing = Query(filter: #Predicate<ArtworkNote> { n in
             n.exhibitionId == exhibitionId && n.catalogNumber == catalogNumber
         })
     }
-
+    
     var body: some View {
         VStack(spacing: 14) {
             HStack {
@@ -99,13 +90,21 @@ private struct NoteCard: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-
-            TextField("一言メモ", text: $text, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
+            
+            // TextEditor をカード内で最大化
+            TextEditor(text: $text)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(minHeight: 160, maxHeight: .infinity, alignment: .topLeading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8).fill(Color(.secondarySystemBackground))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8).stroke(.quaternary, lineWidth: 1)
+                )
                 .onAppear {
                     if let note = existing.first { text = note.memo }
                 }
-
             Button {
                 save()
             } label: {
@@ -114,8 +113,6 @@ private struct NoteCard: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-            // 片手操作向けに空白スペース
             Spacer(minLength: 0)
         }
         .padding()
@@ -128,16 +125,30 @@ private struct NoteCard: View {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(.quaternary, lineWidth: 1)
         )
+        .onChange(of: saveSignal) { _ in
+            save()
+        }
     }
-
+    
     private func save() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 何も入力されていない → 保存しない（既存があれば削除）
+        guard !trimmed.isEmpty else {
+            if let note = existing.first {
+                context.delete(note)
+            }
+            saved = false
+            return
+        }
+        
+        // ② 入力あり → 保存（memo は必ず trimmed で）
         if let note = existing.first {
-            note.memo = text
+            note.memo = trimmed
             note.updatedAt = .now
         } else {
             let note = ArtworkNote(exhibitionId: exhibitionId,
                                    catalogNumber: catalogNumber,
-                                   memo: text)
+                                   memo: trimmed)
             context.insert(note)
         }
         saved = true
