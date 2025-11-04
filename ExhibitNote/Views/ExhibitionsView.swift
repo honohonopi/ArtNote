@@ -38,7 +38,8 @@ struct ExhibitionsView: View {
                     .opacity(ex.endDate < Date() ? 0.5 : 1.0)
                 }
             }
-            .navigationTitle("Exhibitions")
+            .navigationTitle("展覧会リスト")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAdd = true } label: { Image(systemName: "plus") }

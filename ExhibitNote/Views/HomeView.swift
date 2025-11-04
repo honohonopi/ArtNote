@@ -60,7 +60,7 @@ struct HomeSoonSectionView: View {
     var body: some View {
         Section {
             if exhibitions.isEmpty {
-                ContentUnavailableView("該当する展示はありません", systemImage: "checkmark.seal")
+                ContentUnavailableView("該当する展示はありません", systemImage: "calendar.circle")
             } else {
                 ForEach(Array(exhibitions.prefix(5))) { ex in
                     NavigationLink(value: ex) {
@@ -97,32 +97,17 @@ struct HomeNearbySectionView: View {
     @Binding var mapRegion: MKCoordinateRegion
     
     let authorization: CLAuthorizationStatus
-    let items: [(Exhibition, Double)]   // 距離付き（近い順）
+    let items: [(Exhibition, Double)]
     let pins: [MapPin]
     let requestLocation: () -> Void
     let onRadiusEditingChanged: (Bool) -> Void
     
     var body: some View {
-        Section(header: Text("近くで開催中")) {
-            HStack {
-                Image(systemName: "figure.walk.circle")
-                Text("半径 \(Int(nearbyRadiusKm)) km")
-                Slider(
-                    value: $nearbyRadiusKm,
-                    in: 3...50,
-                    step: 1,
-                    onEditingChanged: { editing in
-                        // 親に「ドラッグ開始/終了」を伝える
-                        onRadiusEditingChanged(editing)
-                    }
-                )
-            }
-            .padding(.vertical, 4)
-            
+        Section {
             if (authorization == .authorizedAlways || authorization == .authorizedWhenInUse),
                !pins.isEmpty {
                 NearbyMiniMapView(region: $mapRegion, pins: pins)
-                    .frame(height: 180)
+                    .aspectRatio(1, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             
@@ -143,6 +128,31 @@ struct HomeNearbySectionView: View {
                 }
             default:
                 ContentUnavailableView("位置情報の許可が必要です", systemImage: "location.slash")
+            }
+        } header: {
+            HStack(alignment: .firstTextBaseline) {
+                Text("近くで開催中")
+                Spacer()
+                Text("\(Int(nearbyRadiusKm))km")
+                Menu {
+                    Picker("範囲の選択", selection: Binding(
+                        get: { Int(nearbyRadiusKm) },
+                        set: { newVal in
+                            nearbyRadiusKm = Double(newVal)
+                            onRadiusEditingChanged(false)
+                        }
+                    )) {
+                        Text("3km").tag(3)
+                        Text("5km").tag(5)
+                        Text("10km").tag(10)
+                        Text("20km").tag(20)
+                        Text("50km").tag(50)
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .imageScale(.medium)
+                        .padding(.leading, 6)
+                }
             }
         }
     }
@@ -249,7 +259,8 @@ struct HomeView: View {
                     }
                 )
             }
-            .navigationTitle("Home")
+            .navigationTitle("ホーム")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // あとでアプリ設定用の画面を実装
             }
@@ -272,10 +283,6 @@ struct HomeView: View {
                     mapRegion.center = c
                     mapRegion.span = spanForRadius
                 }
-                recomputeNearby()
-            }
-            .onChange(of: nearbyRadiusKm) { _ in
-                mapRegion.span = spanForRadius
                 recomputeNearby()
             }
             // 件数だけ監視にして型推論を軽く
