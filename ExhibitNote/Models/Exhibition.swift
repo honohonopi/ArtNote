@@ -30,6 +30,33 @@ final class Exhibition {
     var longitude: Double?
     var address: String?
     
+    // 訪問フラッグ
+    var visited: Bool = false
+    var visitedAt: Date? = nil
+    
+    // ステータス（未開催/開催中/終了）
+    enum RunStatus: String, CaseIterable, Identifiable {
+        case notStarted, ongoing, finished
+        var id: Self { self }
+        var label: String {
+            switch self {
+            case .notStarted: return "未開催"
+            case .ongoing:    return "開催中"
+            case .finished:   return "終了"
+            }
+        }
+    }
+    
+    var runStatus: RunStatus {
+        let today = Calendar.current.startOfDay(for: Date())
+        let sd = Calendar.current.startOfDay(for: startDate)
+        let ed = Calendar.current.startOfDay(for: endDate)
+
+        if today < sd { return .notStarted }
+        if today > ed { return .finished }
+        return .ongoing
+    }
+    
     init(id: String = UUID().uuidString,
          title: String,
          venue: String,

@@ -197,6 +197,13 @@ struct ExhibitionDetailView: View {
                     } label: {
                         Label("編集", systemImage: "pencil")
                     }
+                    Button {
+                        exhibition.visited.toggle()
+                        exhibition.visitedAt = exhibition.visited ? Date() : nil
+                    } label: {
+                        Label(exhibition.visited ? "訪問済みを取り消し" : "訪問済みにする",
+                              systemImage: exhibition.visited ? "checkmark.circle" : "checkmark.circle.fill")
+                    }
                     Divider()
                     // 削除
                     Button(role: .destructive) {
