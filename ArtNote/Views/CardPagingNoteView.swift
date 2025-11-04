@@ -11,8 +11,11 @@ import SwiftData
 
 struct CardPagingNoteView: View {
     let exhibition: Exhibition
+    var startIndex: Int? = nil   // ← 復元用（1始まりの表示番号）
+    
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var overlay: AppOverlayState
     
     @State private var index: Int = 0
     @State private var saveSignal: Int = 0
@@ -48,11 +51,27 @@ struct CardPagingNoteView: View {
             .padding()
             .navigationTitle("鑑賞モード")
             .toolbar {
+                // ← 最小化：現在ページの“表示番号”を保存して閉じる
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        let currentNumber = numbers.indices.contains(index) ? numbers[index] : 1
+                        overlay.minimized = .init(exhibition: exhibition, currentIndex: currentNumber)
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.down")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         saveSignal &+= 1
                         dismiss()
                     } label: { Text("完了") }
+                }
+            }
+            // 復元用：startIndex が来ていたらその番号のカードへ
+            .onAppear {
+                if let s = startIndex, let i = numbers.firstIndex(of: s) {
+                    index = i
                 }
             }
         }
