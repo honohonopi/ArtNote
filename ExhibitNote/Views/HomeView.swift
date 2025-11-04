@@ -32,23 +32,39 @@ struct MapPin: Identifiable {
     let coordinate: CLLocationCoordinate2D
     let title: String
     let isHere: Bool
+    let exhibition: Exhibition?
 }
 
 struct NearbyMiniMapView: View {
     @Binding var region: MKCoordinateRegion
     let pins: [MapPin]
+    @Binding var selectedPinID: UUID?
     
     var body: some View {
-        Map(
-            coordinateRegion: $region,
-            interactionModes: [.zoom, .pan],
-            showsUserLocation: false,
-            annotationItems: pins
-        ) { (pin: MapPin) in
-            pin.isHere
-            ? MapMarker(coordinate: pin.coordinate, tint: .blue)
-            : MapMarker(coordinate: pin.coordinate, tint: .red)
-        }
+                Map(
+                    coordinateRegion: $region,
+                    interactionModes: [.zoom, .pan],
+                    showsUserLocation: false,
+                    annotationItems: pins
+                ) { (pin: MapPin) in
+                    MapAnnotation(coordinate: pin.coordinate) {
+                        // タップで選択状態を更新 → リスト側がハイライト＆スクロール
+                        Button {
+                            selectedPinID = pin.id
+                        } label: {
+                            Image(systemName: pin.isHere ? "mappin.circle.fill" : "mappin.circle")
+                                .font(.title3)
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(
+                                    pin.isHere ? Color.accentColor : (selectedPinID == pin.id ? Color.red : Color.gray)
+                                )
+                                .padding(4)
+                                .background(.thinMaterial, in: Circle().inset(by: -2))
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                    }
+                }
     }
 }
 
@@ -102,11 +118,14 @@ struct HomeNearbySectionView: View {
     let requestLocation: () -> Void
     let onRadiusEditingChanged: (Bool) -> Void
     
+    @Binding var selectedPinID: UUID?          // ← Map の選択状態を受け取る
+    @State private var highlightedExID: PersistentIdentifier? = nil  // SwiftData の ID 型
+    
     var body: some View {
         Section {
             if (authorization == .authorizedAlways || authorization == .authorizedWhenInUse),
                !pins.isEmpty {
-                NearbyMiniMapView(region: $mapRegion, pins: pins)
+                NearbyMiniMapView(region: $mapRegion, pins: pins, selectedPinID: $selectedPinID)
                     .aspectRatio(1, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -116,9 +135,38 @@ struct HomeNearbySectionView: View {
                 if items.isEmpty {
                     ContentUnavailableView("近くで開催中の展示はありません", systemImage: "mappin.and.ellipse")
                 } else {
-                    ForEach(Array(items.prefix(5)), id: \.0.id) { ex, km in
-                        NavigationLink(value: ex) {
-                            ExhibitionRowView(ex: ex, distanceKm: km)
+                    ScrollViewReader { proxy in
+                        ForEach(Array(items.prefix(5)), id: \.0.id) { ex, km in
+                            NavigationLink(value: ex) {
+                                ExhibitionRowView(ex: ex, distanceKm: km)
+                                    .padding(.vertical, 4)
+                            }
+                            .overlay(alignment: .leading) {
+                                if highlightedExID == ex.id {
+                                    Rectangle()
+                                        .fill(Color.red.opacity(0.5))
+                                        .frame(width: 4)
+                                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                                }
+                            }
+                            .animation(.easeInOut(duration: 0.25), value: highlightedExID)
+                            .id(ex.id)
+                        }
+                        .onChange(of: selectedPinID) { _, newID in
+                            guard let pid = newID,
+                                  let pin = pins.first(where: { $0.id == pid }),
+                                  let ex = pin.exhibition
+                            else {
+                                highlightedExID = nil
+                                return
+                            }
+                            highlightedExID = ex.id
+                            // 少し遅延してスクロール（描画安定のため）
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                withAnimation(.easeInOut) {
+                                    proxy.scrollTo(ex.id, anchor: .center)
+                                }
+                            }
                         }
                     }
                 }
@@ -178,6 +226,8 @@ struct HomeView: View {
     @State private var nearbyOngoingCache: [(Exhibition, Double)] = []
     @State private var isAdjustingRadius = false
     
+    @State private var selectedPinID: UUID? = nil
+    
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
         span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
@@ -217,11 +267,11 @@ struct HomeView: View {
     private var nearbyPins: [MapPin] {
         var pins: [MapPin] = []
         if let here = loc.location?.coordinate {
-            pins.append(.init(coordinate: here, title: "現在地", isHere: true))
+            pins.append(.init(coordinate: here, title: "現在地", isHere: true, exhibition: nil))
         }
         for (ex, _) in nearbyOngoingCache.prefix(10) {
             if let c = ex.coordinate {
-                pins.append(.init(coordinate: c, title: ex.title, isHere: false))
+                pins.append(.init(coordinate: c, title: ex.title, isHere: false, exhibition: ex)) // ← ここで紐付け
             }
         }
         return pins
@@ -256,7 +306,8 @@ struct HomeView: View {
                             mapRegion.span = spanForRadius
                             recomputeNearby()
                         }
-                    }
+                    },
+                    selectedPinID: $selectedPinID
                 )
             }
             .navigationTitle("ホーム")
@@ -292,3 +343,4 @@ struct HomeView: View {
         }
     }
 }
+

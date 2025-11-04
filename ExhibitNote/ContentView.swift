@@ -14,11 +14,11 @@ struct ContentView: View {
     var body: some View {
         TabView {
             HomeView()
-                .tabItem { Label("Home", systemImage: "house") }
+                .tabItem { Label("ホーム", systemImage: "house") }
             ExhibitionsCalendarView()
-                .tabItem { Label("Calendar", systemImage: "calendar") }
+                .tabItem { Label("カレンダー", systemImage: "calendar") }
             ExhibitionsView()
-                .tabItem { Label("Exhibitions", systemImage: "calendar") }
+                .tabItem { Label("展覧会リスト", systemImage: "list.bullet") }
         }
         // 画面の safeAreaInsets.top を取得（初回/回転時に更新）
         .background(
