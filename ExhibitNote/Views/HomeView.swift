@@ -53,11 +53,12 @@ struct NearbyMiniMapView: View {
 }
 
 struct HomeSoonSectionView: View {
-    let soonDays: Int
+    @Binding var soonDays: Int
     let exhibitions: [Exhibition]
+    @State private var showPicker = false
     
     var body: some View {
-        Section(header: Text("まもなく終了")) {
+        Section {
             if exhibitions.isEmpty {
                 ContentUnavailableView("該当する展示はありません", systemImage: "checkmark.seal")
             } else {
@@ -66,6 +67,26 @@ struct HomeSoonSectionView: View {
                         ExhibitionRowView(ex: ex, distanceKm: nil)
                     }
                 }
+            }
+            
+        } header: {
+            HStack(alignment: .firstTextBaseline) {
+                Text("まもなく終了")
+                Spacer()
+                // 現在の抽出日数を表示（任意）
+                Text("\(soonDays)日以内")
+                // アイコンからPickerを展開
+                Menu {
+                    Picker("抽出期間の選択", selection: $soonDays) {
+                        Text("3日以内").tag(3)
+                        Text("7日以内").tag(7)
+                        Text("10日以内").tag(10)
+                        Text("14日以内").tag(14)
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .menuStyle(.automatic)
             }
         }
     }
@@ -209,7 +230,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             List {
-                HomeSoonSectionView(soonDays: soonDays, exhibitions: soonExhibitions)
+                HomeSoonSectionView(soonDays: $soonDays, exhibitions: soonExhibitions)
                 
                 HomeNearbySectionView(
                     nearbyRadiusKm: $nearbyRadiusKm,
@@ -230,18 +251,7 @@ struct HomeView: View {
             }
             .navigationTitle("Home")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("抽出期間の選択", selection: $soonDays) {
-                            Text("3日以内").tag(3)
-                            Text("7日以内").tag(7)
-                            Text("10日以内").tag(10)
-                            Text("14日以内").tag(14)
-                        }
-                    } label: {
-                        Label("抽出期間", systemImage: "slider.horizontal.3")
-                    }
-                }
+                // あとでアプリ設定用の画面を実装
             }
             .navigationDestination(for: Exhibition.self) { ex in
                 ExhibitionDetailView(exhibition: ex)
