@@ -11,26 +11,26 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		557059D12E8FAA6500FB2905 /* ArtNote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArtNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		557059D12E8FAA6500FB2905 /* ExhibitNote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ExhibitNote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		550197CD2EAFE85000D2F313 /* Exceptions for "ArtNote" folder in "ArtNote" target */ = {
+		550197CD2EAFE85000D2F313 /* Exceptions for "ExhibitNote" folder in "ExhibitNote" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 557059D02E8FAA6500FB2905 /* ArtNote */;
+			target = 557059D02E8FAA6500FB2905 /* ExhibitNote */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		557059D32E8FAA6500FB2905 /* ArtNote */ = {
+		557059D32E8FAA6500FB2905 /* ExhibitNote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				550197CD2EAFE85000D2F313 /* Exceptions for "ArtNote" folder in "ArtNote" target */,
+				550197CD2EAFE85000D2F313 /* Exceptions for "ExhibitNote" folder in "ExhibitNote" target */,
 			);
-			path = ArtNote;
+			path = ExhibitNote;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -50,7 +50,7 @@
 		557059C82E8FAA6500FB2905 = {
 			isa = PBXGroup;
 			children = (
-				557059D32E8FAA6500FB2905 /* ArtNote */,
+				557059D32E8FAA6500FB2905 /* ExhibitNote */,
 				557059D22E8FAA6500FB2905 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -58,7 +58,7 @@
 		557059D22E8FAA6500FB2905 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				557059D12E8FAA6500FB2905 /* ArtNote.app */,
+				557059D12E8FAA6500FB2905 /* ExhibitNote.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,9 +66,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		557059D02E8FAA6500FB2905 /* ArtNote */ = {
+		557059D02E8FAA6500FB2905 /* ExhibitNote */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 557059DF2E8FAA6700FB2905 /* Build configuration list for PBXNativeTarget "ArtNote" */;
+			buildConfigurationList = 557059DF2E8FAA6700FB2905 /* Build configuration list for PBXNativeTarget "ExhibitNote" */;
 			buildPhases = (
 				557059CD2E8FAA6500FB2905 /* Sources */,
 				557059CE2E8FAA6500FB2905 /* Frameworks */,
@@ -79,14 +79,14 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				557059D32E8FAA6500FB2905 /* ArtNote */,
+				557059D32E8FAA6500FB2905 /* ExhibitNote */,
 			);
-			name = ArtNote;
+			name = ExhibitNote;
 			packageProductDependencies = (
 				55705A1A2E8FD30E00FB2905 /* HorizonCalendar */,
 			);
 			productName = ArtNote;
-			productReference = 557059D12E8FAA6500FB2905 /* ArtNote.app */;
+			productReference = 557059D12E8FAA6500FB2905 /* ExhibitNote.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -104,7 +104,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 557059CC2E8FAA6500FB2905 /* Build configuration list for PBXProject "ArtNote" */;
+			buildConfigurationList = 557059CC2E8FAA6500FB2905 /* Build configuration list for PBXProject "ExhibitNote" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -121,7 +121,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				557059D02E8FAA6500FB2905 /* ArtNote */,
+				557059D02E8FAA6500FB2905 /* ExhibitNote */,
 			);
 		};
 /* End PBXProject section */
@@ -273,11 +273,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ArtNote/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
 				DEVELOPMENT_TEAM = C99SPRR28W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ArtNote/Info.plist;
+				INFOPLIST_FILE = ExhibitNote/Info.plist;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "美術展の予定をあなたのカレンダーに追加するために使用します。";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ポスターを撮影して会期を読み取るために使用します。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "近くの美術展を表示するために位置情報を使います。";
@@ -293,7 +293,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.Nishiyama.Honoka.ArtNote;
+				PRODUCT_BUNDLE_IDENTIFIER = app.Nishiyama.Honoka.ExhibitNote;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -308,11 +308,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ArtNote/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
 				DEVELOPMENT_TEAM = C99SPRR28W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ArtNote/Info.plist;
+				INFOPLIST_FILE = ExhibitNote/Info.plist;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "美術展の予定をあなたのカレンダーに追加するために使用します。";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ポスターを撮影して会期を読み取るために使用します。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "近くの美術展を表示するために位置情報を使います。";
@@ -328,7 +328,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.Nishiyama.Honoka.ArtNote;
+				PRODUCT_BUNDLE_IDENTIFIER = app.Nishiyama.Honoka.ExhibitNote;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -339,7 +339,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		557059CC2E8FAA6500FB2905 /* Build configuration list for PBXProject "ArtNote" */ = {
+		557059CC2E8FAA6500FB2905 /* Build configuration list for PBXProject "ExhibitNote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				557059DD2E8FAA6700FB2905 /* Debug */,
@@ -348,7 +348,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		557059DF2E8FAA6700FB2905 /* Build configuration list for PBXNativeTarget "ArtNote" */ = {
+		557059DF2E8FAA6700FB2905 /* Build configuration list for PBXNativeTarget "ExhibitNote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				557059E02E8FAA6700FB2905 /* Debug */,
