@@ -57,7 +57,7 @@ struct HomeSoonSectionView: View {
     let exhibitions: [Exhibition]
     
     var body: some View {
-        Section(header: Text("まもなく終了（\(soonDays)日以内）")) {
+        Section(header: Text("まもなく終了")) {
             if exhibitions.isEmpty {
                 ContentUnavailableView("該当する展示はありません", systemImage: "checkmark.seal")
             } else {
@@ -79,13 +79,22 @@ struct HomeNearbySectionView: View {
     let items: [(Exhibition, Double)]   // 距離付き（近い順）
     let pins: [MapPin]
     let requestLocation: () -> Void
+    let onRadiusEditingChanged: (Bool) -> Void
     
     var body: some View {
-        Section(header: Text("近くで開催中（\(Int(nearbyRadiusKm)) km以内）")) {
+        Section(header: Text("近くで開催中")) {
             HStack {
                 Image(systemName: "figure.walk.circle")
                 Text("半径 \(Int(nearbyRadiusKm)) km")
-                Slider(value: $nearbyRadiusKm, in: 3...50, step: 1)
+                Slider(
+                    value: $nearbyRadiusKm,
+                    in: 3...50,
+                    step: 1,
+                    onEditingChanged: { editing in
+                        // 親に「ドラッグ開始/終了」を伝える
+                        onRadiusEditingChanged(editing)
+                    }
+                )
             }
             .padding(.vertical, 4)
             
@@ -136,6 +145,7 @@ struct HomeView: View {
     @StateObject private var loc = LocationManager()
     
     @State private var nearbyOngoingCache: [(Exhibition, Double)] = []
+    @State private var isAdjustingRadius = false
     
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
@@ -207,10 +217,18 @@ struct HomeView: View {
                     authorization: loc.authorization,
                     items: nearbyOngoingCache,
                     pins: nearbyPins,
-                    requestLocation: { loc.request() }
+                    requestLocation: { loc.request() },
+                    onRadiusEditingChanged: { isEditing in
+                        isAdjustingRadius = isEditing
+                        // 指を離したタイミングでだけ地図更新＆再計算
+                        if !isEditing {
+                            mapRegion.span = spanForRadius
+                            recomputeNearby()
+                        }
+                    }
                 )
             }
-            .navigationTitle("ArtNote")
+            .navigationTitle("Home")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -229,8 +247,11 @@ struct HomeView: View {
                 ExhibitionDetailView(exhibition: ex)
             }
             .task { try? await ReminderService.shared.requestAuthorization() }
-            .onChange(of: scenePhase) { phase in
-                if phase == .active { now = Date() }
+            // 近接半径が変わっても、ドラッグ中は重い更新をしない
+            .onChange(of: nearbyRadiusKm) { _ in
+                guard !isAdjustingRadius else { return }
+                mapRegion.span = spanForRadius
+                recomputeNearby()
             }
             .onAppear {
                 if loc.authorization == .notDetermined { loc.request() }
