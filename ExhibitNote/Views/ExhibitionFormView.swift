@@ -260,7 +260,8 @@ struct ExhibitionFormView: View {
                         .keyboardType(.numberPad)
                 }
             }
-            .navigationTitle("展示を追加")
+            .navigationTitle("展覧会を追加")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }

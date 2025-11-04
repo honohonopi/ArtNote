@@ -17,6 +17,7 @@ struct ExhibitionsView: View {
     @State private var visitFilter: VisitFilter = .unvisited
     @State private var statusFilter: Exhibition.RunStatus? = nil
     @State private var searchText: String = ""
+    @State private var showSearch: Bool = false
     
     // 追加フラグ
     @State private var showAdd = false
@@ -123,12 +124,26 @@ struct ExhibitionsView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
-//                .scrollContentBackground(.hidden)
+                //                .scrollContentBackground(.hidden)
             }
             .navigationTitle("展覧会リスト")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "展示名・会場で検索")
+            .if(showSearch) { view in
+                view.searchable(text: $searchText, prompt: "展示名・会場で検索")
+            }
             .toolbar {
+                // 検索の表示/非表示トグル
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+//                        withAnimation {
+                            showSearch.toggle()
+                            if !showSearch { searchText = "" }
+//                        }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .accessibilityLabel("検索")
+                }
                 // ステータス絞り込みメニュー
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -156,6 +171,14 @@ struct ExhibitionsView: View {
                 ExhibitionDetailView(exhibition: ex)
             }
         }
+    }
+}
+private extension View {
+    @ViewBuilder func `if`<Content: View>(
+        _ condition: Bool,
+        transform: (Self) -> Content
+    ) -> some View {
+        if condition { transform(self) } else { self }
     }
 }
 
