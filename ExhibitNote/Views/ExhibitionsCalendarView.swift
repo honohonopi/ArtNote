@@ -58,6 +58,15 @@ struct ExhibitionsCalendarView: View {
                         }
                 }
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("今日") {
+                        NotificationCenter.default.post(name: .calendarJumpToToday, object: nil)
+                    }
+                    .font(.body.weight(.semibold))
+                    .accessibilityLabel("今日へ移動")
+                }
+            }
             .navigationTitle("カレンダー")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $vm.showDaySheet) {
