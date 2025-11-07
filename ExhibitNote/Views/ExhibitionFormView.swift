@@ -50,6 +50,8 @@ struct ExhibitionFormView: View {
     @State private var mapPickerPayload: MapPickerPayload? = nil
     @State private var tempCoordinate: CLLocationCoordinate2D?
     
+    @State private var showCamera = false
+    
     @State private var previewRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
@@ -69,6 +71,67 @@ struct ExhibitionFormView: View {
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy/MM/dd"
         return f
+    }
+    
+    private func handlePickedImage(_ image: UIImage) {
+        Task {
+            do {
+                // 画像 → テキスト
+                let text = try await TextRecognitionService.recognizeText(from: image)
+
+                // 各候補を抽出
+                let tCands = TitleExtractionService.candidates(from: text)
+                let vCands = VenueExtractionService.candidates(from: text)
+                let dCands = DateParsingService.candidates(from: text)
+
+                if let dom = DominantColorService.dominantColor(from: image) {
+                    await MainActor.run {
+                        self.autoColor = dom
+                        self.pickedColor = Color(dom)
+                    }
+                }
+
+                await MainActor.run {
+                    self.titleOptions = tCands
+                    if self.title.isEmpty, let first = tCands.first { self.title = first }
+                    self.selectedTitle = self.title
+
+                    self.venueOptions = vCands
+                    if self.venue.isEmpty, let first = vCands.first { self.venue = first }
+                    self.selectedVenue = self.venue
+
+                    self.dateOptions = dCands
+                    if let first = dCands.first {
+                        self.startDate = min(first.0, first.1)
+                        self.endDate   = max(first.0, first.1)
+                        self.selectedDateIndex = 0
+                    }
+                }
+
+                let missing = [
+                    tCands.isEmpty ? "展覧会名" : nil,
+                    vCands.isEmpty ? "会場名"   : nil,
+                    dCands.isEmpty ? "会期"     : nil
+                ].compactMap { $0 }
+                let message = missing.isEmpty ? nil : "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
+                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
+
+                await MainActor.run {
+                    if needsReview {
+                        self.pendingAlertMessage = message
+                        self.showReviewSheet = true
+                    } else if let msg = message {
+                        self.missingAlertMessage = msg
+                        self.showMissingAlert = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    ocrAlertMessage = "テキスト認識に失敗しました：\(error.localizedDescription)"
+                    showOcrAlert = true
+                }
+            }
+        }
     }
     
     private func save() {
@@ -152,85 +215,34 @@ struct ExhibitionFormView: View {
                         .textInputAutocapitalization(.never)
                 }
                 Section("ポスターから自動入力") {
-                    Button {
-                        showPhotoPicker = true
+                    Menu {
+                        Button {
+                            showPhotoPicker = true
+                        } label: {
+                            Label("写真ライブラリ", systemImage: "photo.on.rectangle")
+                        }
+
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button {
+                                showCamera = true
+                            } label: {
+                                Label("カメラ", systemImage: "camera.viewfinder")
+                            }
+                        }
                     } label: {
+                        // もともとの見た目はそのまま
                         Label("写真から情報を抽出", systemImage: "text.viewfinder")
                     }
                 }
                 .onChange(of: selectedItem) { _, newItem in
                     guard let item = newItem else { return }
                     Task {
-                        do {
-                            if let data = try await item.loadTransferable(type: Data.self),
-                               let image = UIImage(data: data) {
-                                
-                                // 画像 -> テキスト
-                                let text = try await TextRecognitionService.recognizeText(from: image)
-                                
-                                // 各候補を抽出
-                                let tCands = TitleExtractionService.candidates(from: text)
-                                let vCands = VenueExtractionService.candidates(from: text)
-                                let dCands = DateParsingService.candidates(from: text)
-                                
-                                if let dom = DominantColorService.dominantColor(from: image) {
-                                    await MainActor.run {
-                                        self.autoColor = dom
-                                        self.pickedColor = Color(dom)   // ColorPicker の初期値
-                                    }
-                                }
-                                
-                                // まずは既定値として 1件だけなら自動採用
-                                await MainActor.run {
-                                    // 展覧会名
-                                    self.titleOptions = tCands
-                                    if self.title.isEmpty, let first = tCands.first { self.title = first }
-                                    self.selectedTitle = self.title
-                                    
-                                    // 会場
-                                    self.venueOptions = vCands
-                                    if self.venue.isEmpty, let first = vCands.first { self.venue = first }
-                                    self.selectedVenue = self.venue
-                                    
-                                    // 会期
-                                    self.dateOptions = dCands
-                                    if let first = dCands.first {
-                                        self.startDate = min(first.0, first.1)
-                                        self.endDate   = max(first.0, first.1)
-                                        self.selectedDateIndex = 0
-                                    }
-                                }
-                                
-                                // 不足アラート（何か1つでも取れなかった）
-                                let missing = [
-                                    tCands.isEmpty ? "展覧会名" : nil,
-                                    vCands.isEmpty ? "会場名"   : nil,
-                                    dCands.isEmpty ? "会期"     : nil
-                                ].compactMap { $0 }
-                                let message = missing.isEmpty ? nil : "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
-                                
-                                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
-                                await MainActor.run {
-                                    if needsReview {
-                                        // まずはシートだけ出す。アラートは保留
-                                        self.pendingAlertMessage = message
-                                        self.showReviewSheet = true
-                                    } else if let msg = message {
-                                        // シート不要なら即アラート
-                                        self.missingAlertMessage = msg
-                                        self.showMissingAlert = true
-                                    }
-                                }
-                                
-                            } else {
-                                await MainActor.run {
-                                    ocrAlertMessage = "画像の読み込みに失敗しました。"
-                                    showOcrAlert = true
-                                }
-                            }
-                        } catch {
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let image = UIImage(data: data) {
+                            handlePickedImage(image)
+                        } else {
                             await MainActor.run {
-                                ocrAlertMessage = "テキスト認識に失敗しました：\(error.localizedDescription)"
+                                ocrAlertMessage = "画像の読み込みに失敗しました。"
                                 showOcrAlert = true
                             }
                         }
@@ -367,5 +379,11 @@ struct ExhibitionFormView: View {
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedItem, matching: .images)
+        .sheet(isPresented: $showCamera) {
+            CameraPicker { image in
+                if let img = image { handlePickedImage(img) }
+                showCamera = false
+            }
+        }
     }
 }

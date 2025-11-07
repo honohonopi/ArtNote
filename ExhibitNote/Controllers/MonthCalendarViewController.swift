@@ -9,7 +9,12 @@ import SwiftUI
 
 final class MonthCalendarViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
     
-    private let cal = Calendar.current
+    private var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = Locale(identifier: "ja_JP")
+        c.firstWeekday = 1  // ←月曜始まりにしたい場合は 2 に
+        return c
+    }()
     private var monthAnchor: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date()))!
     
     private var daysMatrix: [[Date?]] = []     // 6週×7列（nil は前後月の空き）
@@ -262,28 +267,32 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     }
     
     private func updateWeekdaySymbols() {
-        // 例: ["日","月","火","水","木","金","土"] を firstWeekday に合わせて回転
-        var syms = cal.shortStandaloneWeekdaySymbols  // 日曜始まりが前提の配列
+        // 「日/月/…」をロケール ja_JP で取得（端末言語に依存しない）
+        let df = DateFormatter()
+        df.calendar = cal
+        df.locale   = cal.locale
+
+        var syms = df.shortStandaloneWeekdaySymbols ?? ["日","月","火","水","木","金","土"]
+
         let rotate = max(0, cal.firstWeekday - 1)
         if rotate > 0 {
             syms = Array(syms.dropFirst(rotate)) + Array(syms.prefix(rotate))
         }
-        
+
         for i in 0..<weekdayLabels.count {
             weekdayLabels[i].text = syms[i]
-            
-            // weekend の色（firstWeekday に依存させて計算）
-            // 列 i の実際の曜日番号（1=Sun ... 7=Sat）
+
             let weekdayNumber = ((cal.firstWeekday + i - 1) % 7) + 1
-            if weekdayNumber == 1 { // Sunday
+            if weekdayNumber == 1 {
                 weekdayLabels[i].textColor = .systemRed
-            } else if weekdayNumber == 7 { // Saturday
+            } else if weekdayNumber == 7 {
                 weekdayLabels[i].textColor = .systemBlue
             } else {
                 weekdayLabels[i].textColor = .secondaryLabel
             }
         }
     }
+
 }
 
 extension MonthCalendarViewController {

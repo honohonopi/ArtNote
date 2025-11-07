@@ -126,6 +126,9 @@ struct ExhibitionsView: View {
                 .listStyle(.insetGrouped)
                 //                .scrollContentBackground(.hidden)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .ignoresSafeArea(edges: .bottom)
             .navigationTitle("展覧会リスト")
             .navigationBarTitleDisplayMode(.inline)
             .if(showSearch) { view in
