@@ -225,7 +225,7 @@ struct ExhibitionFormView: View {
                         Button {
                             showPhotoPicker = true
                         } label: {
-                            Label("写真ライブラリ", systemImage: "photo.on.rectangle")
+                            Label("写真ライブラリから選ぶ", systemImage: "photo.on.rectangle")
                         }
 
                         if UIImagePickerController.isSourceTypeAvailable(.camera) {
