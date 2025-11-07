@@ -30,43 +30,36 @@ struct ExhibitionsCalendarView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                // 背景（全体を灰色にする）
-                Color(uiColor: .systemGroupedBackground)
-                    .ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    // 月タイトル（白）
-                    if !navTitle.isEmpty {
-                        Text(formattedMonthTitle(from: navTitle))
-                            .font(.system(size: 28, weight: .bold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.top, 8)
-                            .background(Color.white)
-                    }
-
-                    // カレンダー本体（白）
-                    ZStack {
-                        Color.white
-                        MonthPagerRepresentable()
-                            .onReceive(NotificationCenter.default.publisher(for: .calendarMonthTitleUpdated)) { output in
-                                if let title = output.object as? String {
-                                    navTitle = title
-                                }
+            VStack(spacing: 0) {
+                // 月タイトル（白）
+                if !navTitle.isEmpty {
+                    Text(formattedMonthTitle(from: navTitle))
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.primary) // ← ダーク/ライトで自動
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .background(Color(uiColor: .systemBackground))
+                }
+                
+                // カレンダー本体（白）
+                ZStack {
+                    Color(uiColor: .systemBackground)
+                    MonthPagerRepresentable()
+                        .onReceive(NotificationCenter.default.publisher(for: .calendarMonthTitleUpdated)) { output in
+                            if let title = output.object as? String {
+                                navTitle = title
                             }
-                            .onReceive(NotificationCenter.default.publisher(for: .calendarDayTapped)) { out in
-                                guard let date = out.object as? Date else { return }
-                                vm.selectedDate = date
-                                vm.showDaySheet = true
-                            }
-                    }
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: .calendarDayTapped)) { out in
+                            guard let date = out.object as? Date else { return }
+                            vm.selectedDate = date
+                            vm.showDaySheet = true
+                        }
                 }
             }
             .navigationTitle("カレンダー")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color(uiColor: .systemGroupedBackground), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $vm.showDaySheet) {
                 if let date = vm.selectedDate {
                     DayExhibitionsListView(
@@ -92,5 +85,5 @@ struct ExhibitionsCalendarView: View {
             }
         }
     }
-
+    
 }
