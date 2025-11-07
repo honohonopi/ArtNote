@@ -32,7 +32,6 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         if authorization == .authorizedWhenInUse || authorization == .authorizedAlways { m.startUpdatingLocation() }
     }
     func locationManager(_ m: CLLocationManager, didUpdateLocations locs: [CLLocation]) {
-        print("didUpdateLocations")
         if let last = locs.last { location = last }
     }
 }

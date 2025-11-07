@@ -8,6 +8,7 @@
 //  展覧会一覧
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct ExhibitionsView: View {
     @Query(sort: [SortDescriptor(\Exhibition.startDate, order: .forward)])
@@ -72,7 +73,8 @@ struct ExhibitionsView: View {
                     // 一覧
                     ForEach(filtered) { ex in
                         NavigationLink(value: ex) {
-                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            HStack(alignment: .center, spacing: 12) {
+                                ExhibitionThumbnail(ex: ex)
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(ex.title)
                                         .font(.headline.weight(.semibold))
@@ -200,6 +202,38 @@ private extension Exhibition.RunStatus {
         case .notStarted: return .gray
         case .ongoing:    return .blue
         case .finished:   return .secondary
+        }
+    }
+}
+
+// MARK: - Row 先頭のサムネイル
+private struct ExhibitionThumbnail: View {
+    let ex: Exhibition
+
+    private var corner: CGFloat { 4 }
+    private var size: CGFloat { 44 }
+
+    var body: some View {
+        if let data = ex.posterThumbData,
+           let ui = UIImage(data: data) {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size*1.414)
+                .clipShape(RoundedRectangle(cornerRadius: corner))
+                .overlay(
+                    RoundedRectangle(cornerRadius: corner)
+                        .stroke(Color(.quaternaryLabel), lineWidth: 1)
+                )
+        } else {
+            ZStack {
+                (ex.swiftUIColor ?? Color.gray).opacity(0.15)
+                Image(systemName: "photo.on.rectangle")
+                    .imageScale(.medium)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: corner))
         }
     }
 }

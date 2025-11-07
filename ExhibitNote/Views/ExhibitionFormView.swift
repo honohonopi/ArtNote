@@ -11,6 +11,7 @@ import SwiftData
 import PhotosUI
 import CoreLocation
 import MapKit
+import UIKit
 
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +47,7 @@ struct ExhibitionFormView: View {
     
     @State private var pickedColor: Color? = nil
     @State private var autoColor: UIColor? = nil
+    @State private var posterThumbData: Data? = nil
     
     @State private var mapPickerPayload: MapPickerPayload? = nil
     @State private var tempCoordinate: CLLocationCoordinate2D?
@@ -84,6 +86,9 @@ struct ExhibitionFormView: View {
                 let vCands = VenueExtractionService.candidates(from: text)
                 let dCands = DateParsingService.candidates(from: text)
 
+                if let thumb = ImageThumbService.makeThumbnail(image) {
+                    await MainActor.run {self.posterThumbData = thumb}
+                }
                 if let dom = DominantColorService.dominantColor(from: image) {
                     await MainActor.run {
                         self.autoColor = dom
@@ -144,6 +149,7 @@ struct ExhibitionFormView: View {
                             endDate: endDate,
                             url: URL(string: urlString),
                             catalogTotalCount: total)
+        ex.posterThumbData = posterThumbData
         if let c = tempCoordinate {
             ex.setCoordinate(c)
         }

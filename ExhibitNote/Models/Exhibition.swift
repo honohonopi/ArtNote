@@ -47,6 +47,8 @@ final class Exhibition {
         }
     }
     
+    @Attribute(.externalStorage) var posterThumbData: Data? // 400px程度のJPEG/PNG
+    
     var runStatus: RunStatus {
         let today = Calendar.current.startOfDay(for: Date())
         let sd = Calendar.current.startOfDay(for: startDate)
