@@ -19,6 +19,14 @@ final class ArtworkNote {
     var createdAt: Date
     var updatedAt: Date
     
+    // --- 追加（最小構成の作品メタ） ---
+    var artworkTitle: String?
+    var artist: String?
+    var yearText: String?          // 例: "1890 (明治23)"
+    var material: String?          // 例: "油彩・キャンバス"
+    var sizeText: String?          // 例: "73.0×92.0cm"
+    
+    @Attribute(.externalStorage) var photoThumbData: Data? // 作品の小さいサムネ
     
     init(id: String = UUID().uuidString,
          exhibitionId: String,

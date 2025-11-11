@@ -29,6 +29,8 @@ struct ExhibitionDetailView: View {
     @State private var showAddDone = false
     
     @State private var showMapChoice = false
+    @State private var showCatalogOCR = false
+    @State private var ocrPickedImage: UIImage?
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -107,7 +109,7 @@ struct ExhibitionDetailView: View {
             } header: {
                 Text("概要")
             }
-            Section("メモ（\(notes.count)）") {
+            Section {
                 ForEach(notes) { n in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
@@ -119,6 +121,20 @@ struct ExhibitionDetailView: View {
                     }
                     .padding(.vertical, 4)
                 }
+            } header: {
+                HStack {
+                    Text("メモ")
+                    Spacer()
+                    Button {
+                        showCatalogOCR = true
+                    } label: {
+                        Label("目録をOCR", systemImage: "text.viewfinder")
+                    }
+                    .buttonStyle(.bordered) // 視認性を上げたいなら .borderedProminent でもOK
+                }
+            }
+            .sheet(isPresented: $showCatalogOCR) {
+                CatalogOCRView(exhibition: exhibition) // 下で作るビュー
             }
         }
         
