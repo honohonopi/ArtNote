@@ -24,7 +24,7 @@ final class ArtworkNote {
     var artist: String?
     var yearText: String?          // 例: "1890 (明治23)"
     var material: String?          // 例: "油彩・キャンバス"
-    var sizeText: String?          // 例: "73.0×92.0cm"
+    var collection: String?        // 例: "東京国立博物館蔵"
     
     @Attribute(.externalStorage) var photoThumbData: Data? // 作品の小さいサムネ
     
