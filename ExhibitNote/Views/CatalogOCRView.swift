@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import CoreML
 
 struct CatalogOCRView: View {
     let exhibition: Exhibition
@@ -16,8 +17,10 @@ struct CatalogOCRView: View {
 
     @State private var pickerItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
-    @State private var rows: [Row] = []          // 抽出候補
+    @State private var rows: [Row] = []
     @State private var isSaving = false
+    
+    @Query private var allNotes: [ArtworkNote]
 
     struct Row: Identifiable {
         let id = UUID()
@@ -54,16 +57,88 @@ struct CatalogOCRView: View {
                     } else {
                         Section("保存する項目にチェック") {
                             ForEach($rows) { $r in
+                                // 対応する既存ノートを取得
+                                let existingNote = note(for: r.number)
+
                                 Toggle(isOn: $r.selected) {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text("#\(r.number)").monospaced().bold()
-                                        if !r.memo.isEmpty {
-                                            Text(r.memo).foregroundStyle(.secondary)
+
+                                        // ① 作品番号
+                                        Text("#\(r.number)")
+                                            .monospaced()
+                                            .bold()
+
+                                        // ② メモ（自分のメモを優先して表示）
+                                        if let n = existingNote {
+                                            let trimmedMemo = n.memo.trimmingCharacters(in: .whitespacesAndNewlines)
+                                            if !trimmedMemo.isEmpty {
+                                                Text(trimmedMemo)
+                                                    .font(.subheadline)
+                                            } else if !r.memo.isEmpty {
+                                                // メモが空なら、OCR から拾ったタイトル候補も参考として表示
+                                                Text(r.memo)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        } else if !r.memo.isEmpty {
+                                            Text(r.memo)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
                                         }
+
+                                        // ③ 作者（小さく）
+                                        if let artist = existingNote?.artist,
+                                           !artist.isEmpty {
+                                            Text(artist)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Text("作者：OCRで読み込めませんでした")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        // ④ 制作年（小さく）
+                                        if let year = existingNote?.yearText,
+                                           !year.isEmpty {
+                                            Text(year)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Text("制作年：OCRで読み込めませんでした")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        // ⑤ 技法・材質（小さく）
+                                        if let material = existingNote?.material,
+                                           !material.isEmpty {
+                                            Text(material)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Text("技法：OCRで読み込めませんでした")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        // ⑥ 所蔵（小さく）
+                                        if let col = existingNote?.collection,
+                                           !col.isEmpty {
+                                            Text(col)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        else {
+                                           Text("所蔵：OCRで読み込めませんでした")
+                                               .font(.caption2)
+                                               .foregroundStyle(.secondary)
+                                       }
                                     }
                                 }
                             }
                         }
+
                     }
                 }
             }
@@ -87,17 +162,59 @@ struct CatalogOCRView: View {
     private func saveSelected() {
         guard !isSaving else { return }
         isSaving = true
-        // チェックされた候補だけ ArtworkNote として保存
+
+        let exId = exhibition.id
         let selected = rows.filter { $0.selected }
-        for r in selected {
-            let trimmed = r.memo.trimmingCharacters(in: .whitespacesAndNewlines)
-            let note = ArtworkNote(exhibitionId: exhibition.id,
-                                   catalogNumber: r.number,
-                                   memo: trimmed.isEmpty ? "(未入力)" : trimmed)
-            context.insert(note)
+
+        do {
+            for r in selected {
+                let targetNumber = r.number
+                let fd = FetchDescriptor<ArtworkNote>(
+                    predicate: #Predicate<ArtworkNote> { note in
+                        note.exhibitionId == exId && note.catalogNumber == targetNumber
+                    }
+                )
+
+                let existing = try context.fetch(fd).first
+
+                let note: ArtworkNote
+                if let ex = existing {
+                    note = ex
+                } else {
+                    // ② 無ければメモ空で新規作成
+                    note = ArtworkNote(
+                        exhibitionId: exId,
+                        catalogNumber: r.number,
+                        memo: ""
+                    )
+                    context.insert(note)
+                }
+
+                // ③ OCR行のテキストは「作品タイトル」として扱う
+                let title = r.memo.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !title.isEmpty {
+                    if (note.artworkTitle ?? "").isEmpty {
+                        note.artworkTitle = title
+                    }
+                }
+
+                note.updatedAt = Date()
+            }
+
+            try context.save()
+        } catch {
+            print("CatalogOCR save error:", error)
         }
+
         isSaving = false
         dismiss()
+    }
+    
+    private func note(for number: String) -> ArtworkNote? {
+        allNotes.first {
+            $0.exhibitionId == exhibition.id &&
+            $0.catalogNumber == number
+        }
     }
 
     private func loadAndRecognize(from item: PhotosPickerItem?) async {
@@ -136,3 +253,4 @@ private extension Array {
         return filter { seen.insert($0[keyPath: key]).inserted }
     }
 }
+

@@ -112,12 +112,45 @@ struct ExhibitionDetailView: View {
             Section {
                 ForEach(notes) { n in
                     VStack(alignment: .leading, spacing: 6) {
+                        // 目録番号 + 日付行
                         HStack {
-                            Text("#\(n.catalogNumber)").font(.caption).monospaced()
+                            Text("#\(n.catalogNumber)")
+                                .font(.caption)
+                                .monospaced()
                             Spacer()
-                            Text(n.createdAt, style: .date).font(.caption).foregroundStyle(.secondary)
+                            Text(n.createdAt, style: .date)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        Text(n.memo).font(.body)
+
+                        // 作品タイトル
+                        if let t = n.artworkTitle, !t.isEmpty {
+                            Text(t)
+                                .font(.headline)
+                        }
+
+                        // 作者 / 制作年 / 技法 / 所蔵 をまとめてサブタイトルに
+                        let subtitle = [
+                            n.artist,
+                            n.yearText,
+                            n.material,
+                            n.collection
+                        ]
+                        .compactMap { $0?.isEmpty == false ? $0 : nil }
+                        .joined(separator: " / ")
+
+                        if !subtitle.isEmpty {
+                            Text(subtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // 自分のメモ（空文字は表示しない）
+                        let trimmedMemo = n.memo.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmedMemo.isEmpty {
+                            Text(trimmedMemo)
+                                .font(.body)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -130,11 +163,11 @@ struct ExhibitionDetailView: View {
                     } label: {
                         Label("目録をOCR", systemImage: "text.viewfinder")
                     }
-                    .buttonStyle(.bordered) // 視認性を上げたいなら .borderedProminent でもOK
+                    .buttonStyle(.bordered)
                 }
             }
             .sheet(isPresented: $showCatalogOCR) {
-                CatalogOCRView(exhibition: exhibition) // 下で作るビュー
+                CatalogOCRView(exhibition: exhibition)
             }
         }
         

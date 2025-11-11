@@ -75,12 +75,6 @@ extension TextRecognitionService {
         var pairs: [(String, String)] = []
 
         for line in lines {
-            // ノイズが多い行は早期スキップ（英数字だけや寸法・素材の行などを簡易に弾く）
-            let lower = line.lowercased()
-            if lower.contains("cm") || lower.contains("mm") || lower.contains("紙") || lower.contains("oil") {
-                // 但し完全には弾かず、番号+タイトルが取れるなら採用したいので continue せずに正規表現にはかける
-            }
-
             for rx in regexes {
                 if let m = rx.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
                    m.numberOfRanges >= 3,
@@ -88,12 +82,22 @@ extension TextRecognitionService {
                    let rTi = Range(m.range(at: 2), in: line) {
 
                     let no = String(line[rNo]).trimmingCharacters(in: .whitespacesAndNewlines)
-                    var title = String(line[rTi]).trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    // タイトル末尾にある「作者名」「素材」「年代」っぽい尾部を軽くカット（ゆるめ）
+                    // ←★ ここでカタログ番号として妥当か軽くチェック
+                    if let intNo = Int(no) {
+                        // 4桁 & 年号っぽい数字は除外
+                        if (1000...2100).contains(intNo) {
+                            continue
+                        }
+                        // 作品番号の上限を決めてしまうパターン（例: 1〜300）
+                        if intNo <= 0 || intNo > 300 {
+                            continue
+                        }
+                    }
+
+                    var title = String(line[rTi]).trimmingCharacters(in: .whitespacesAndNewlines)
                     title = stripTrailingMeta(from: title)
 
-                    // 取りすぎ防止（短すぎは除外）
                     if title.count >= 2 {
                         pairs.append((no, title))
                     }
