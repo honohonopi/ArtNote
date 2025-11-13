@@ -29,7 +29,6 @@ struct ExhibitionDetailView: View {
     @State private var showAddDone = false
     
     @State private var showMapChoice = false
-    @State private var showCatalogOCR = false
     @State private var ocrPickedImage: UIImage?
     
     init(exhibition: Exhibition) {
@@ -157,17 +156,7 @@ struct ExhibitionDetailView: View {
             } header: {
                 HStack {
                     Text("メモ")
-                    Spacer()
-                    Button {
-                        showCatalogOCR = true
-                    } label: {
-                        Label("目録をOCR", systemImage: "text.viewfinder")
-                    }
-                    .buttonStyle(.bordered)
                 }
-            }
-            .sheet(isPresented: $showCatalogOCR) {
-                CatalogOCRView(exhibition: exhibition)
             }
         }
         
