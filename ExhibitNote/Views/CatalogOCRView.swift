@@ -17,10 +17,13 @@ struct CatalogOCRView: View {
 
     @State private var pickerItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
+    @State private var originalImage: UIImage?      // クロップ用に渡す元画像
+    @State private var showImageCropper = false     // TOCropViewController 表示フラグ
     @State private var rows: [Row] = []
     @State private var isSaving = false
     
     @Query private var allNotes: [ArtworkNote]
+    @State private var classifiedLines: [ClassifiedTextFragment] = []
 
     struct Row: Identifiable {
         let id = UUID()
@@ -40,14 +43,15 @@ struct CatalogOCRView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-
-                if let img = previewImage {
-                    Image(uiImage: img).resizable().scaledToFit()
-                        .frame(maxHeight: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .padding(.bottom, 4)
+                .onChange(of: pickerItem) { newValue in
+                    Task { await loadOriginalImage(from: newValue) }
                 }
-
+                
+                if let img = previewImage {
+                    Image(uiImage: img).resizable().scaledToFit().frame(maxHeight: 220)
+                        .cornerRadius(8)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.3), lineWidth: 1))
+                }
                 List {
                     if rows.isEmpty {
                         Section {
@@ -138,7 +142,6 @@ struct CatalogOCRView: View {
                                 }
                             }
                         }
-
                     }
                 }
             }
@@ -154,11 +157,29 @@ struct CatalogOCRView: View {
                 }
             }
         }
-        .onChange(of: pickerItem) { _, newItem in
-            Task { await loadAndRecognize(from: newItem) }
+        .sheet(isPresented: $showImageCropper) {
+            ImageCropper(image: $originalImage, isPresented: $showImageCropper) { cropped in
+                previewImage = cropped
+                Task { await recognizeCatalog(from: cropped) }
+            }
         }
     }
 
+    private func loadOriginalImage(from item: PhotosPickerItem?) async {
+        rows = []
+        previewImage = nil
+        guard let item else { return }
+
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let img = UIImage(data: data) {
+            print("originalImage loaded: \(img.size)")
+            await MainActor.run {
+                self.originalImage = img
+                self.showImageCropper = true   // ここで sheet を開く
+            }
+        }
+    }
+    
     private func saveSelected() {
         guard !isSaving else { return }
         isSaving = true
@@ -216,34 +237,42 @@ struct CatalogOCRView: View {
             $0.catalogNumber == number
         }
     }
-
-    private func loadAndRecognize(from item: PhotosPickerItem?) async {
-        rows = []
-        previewImage = nil
-        guard let item else { return }
-        if let data = try? await item.loadTransferable(type: Data.self),
-           let img = UIImage(data: data) {
-            previewImage = img
-            await recognizeCatalog(from: img)
-        }
-    }
-
+    
     @MainActor
     private func recognizeCatalog(from image: UIImage) async {
-        // プロジェクトの TextRecognitionService を利用する想定。
-        // 例）TextRecognitionService.extractCatalogLines(image) -> [(number: String, title: String)]
+        rows = []
+        classifiedLines = []
+
         do {
-            let candidates = try await TextRecognitionService.extractCatalogLines(from: image)
-            // 重複や明らかなゴミを軽くフィルタ
-            let norm = candidates
-                .map { (no, title) in Row(number: no, memo: title) }
-                .uniqued(by: \.number)
-            self.rows = norm
+            async let pairsTask = TextRecognitionService.extractCatalogLines(from: image)
+            async let classifiedTask = TextRecognitionService.classifyLines(from: image)
+
+            let pairs = try await pairsTask
+            let classified = try await classifiedTask
+
+            // ▼ここを差し替え
+            let merged = TextRecognitionService().mergeArtistAndTitles(from: pairs as! [TextRecognitionService.CatalogItem])
+            self.rows = merged.map { item in
+                let numberString = item.number.map { String($0) } ?? ""
+                return Row(number: numberString, memo: "\(item.artist) – \(item.title)")
+            }
+
+            self.classifiedLines = classified as! [ClassifiedTextFragment]
+
+            // ▼デバッグ確認用（あとで消してOK）
+            for m in merged {
+                let numStr = m.number.map { String($0) } ?? ""
+                print("[merged] #\(numStr) \(m.artist) – \(m.title)")
+            }
+
         } catch {
-            // 失敗時は簡易フォールバック（全体テキストを1行として表示 等）
+            print("Catalog OCR failed:", error)
             self.rows = []
+            self.classifiedLines = []
         }
     }
+
+
 }
 
 // 小ユーティリティ：KeyPath でユニーク化

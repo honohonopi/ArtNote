@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */ = {isa = PBXBuildFile; productRef = 553ACEE62EC36F6900F341A1 /* CropViewController */; };
+		553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */ = {isa = PBXBuildFile; productRef = 553ACEE82EC36F6900F341A1 /* TOCropViewController */; };
 		55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = 55705A1A2E8FD30E00FB2905 /* HorizonCalendar */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +43,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */,
+				553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */,
+				553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +88,8 @@
 			name = ExhibitNote;
 			packageProductDependencies = (
 				55705A1A2E8FD30E00FB2905 /* HorizonCalendar */,
+				553ACEE62EC36F6900F341A1 /* CropViewController */,
+				553ACEE82EC36F6900F341A1 /* TOCropViewController */,
 			);
 			productName = ArtNote;
 			productReference = 557059D12E8FAA6500FB2905 /* ExhibitNote.app */;
@@ -115,6 +121,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */,
+				553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 557059D22E8FAA6500FB2905 /* Products */;
@@ -360,6 +367,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TimOliver/TOCropViewController";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.0;
+			};
+		};
 		55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/airbnb/HorizonCalendar.git";
@@ -371,6 +386,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		553ACEE62EC36F6900F341A1 /* CropViewController */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */;
+			productName = CropViewController;
+		};
+		553ACEE82EC36F6900F341A1 /* TOCropViewController */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */;
+			productName = TOCropViewController;
+		};
 		55705A1A2E8FD30E00FB2905 /* HorizonCalendar */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */;
