@@ -9,87 +9,91 @@
 import UIKit
 import Vision
 import CoreML
+import NaturalLanguage
 
 enum TextRecognitionError: Error {
     case noImage, handlerFailed, recognizeFailed
 }
 
 struct TextRecognitionService {
+    
+    private static let flyerNLModel: NLModel? = {
+        // Create ML が生成した CoreML モデルの URL
+        let url = TextClassifier_flyer.urlOfModelInThisBundle
+        do {
+            let nlModel = try NLModel(contentsOf: url)
+            print("✅ Loaded NLModel for flyer from \(url.lastPathComponent)")
+            return nlModel
+        } catch {
+            print("⚠️ Failed to load NLModel for flyer: \(error)")
+            return nil
+        }
+    }()
+    
     /// Create ML で学習したフライヤー用テキスト分類モデルの 1 行分の結果
     struct FlyerClassifiedText: Identifiable {
         let id = UUID()
         let text: String
         let label: String      // 例: "title", "venue", "period", "url", "other" など
+        let confidence: Double
     }
-    
-    /// Create ML で生成されたモデルクラス
-    private static let flyerModel: TextClassifier_flyer? = {
-        do {
-            let config = MLModelConfiguration()
-            return try TextClassifier_flyer(configuration: config)
-        } catch {
-            print("⚠️ TextClassifier_flyer load failed: \(error)")
-            return nil
-        }
-    }()
     
     /// 1枚のポスター画像から、
     /// 1) OCRで全文テキストを取得
     /// 2) 行ごとに Create ML モデルでラベル分類
-    static func classifyFlyer(from image: UIImage) async throws -> (rawText: String, lines: [FlyerClassifiedText]) {
-        // まず既存の OCR 処理を使って全文を取る
+    static func classifyFlyer(from image: UIImage) async throws
+    -> (rawText: String, lines: [FlyerClassifiedText]) {
+
         let fullText = try await recognizeText(from: image)
-        
-        print("===== Flyer OCR raw text (全文) =====")
-        print(fullText)
-        print("===== End of raw text =====")
-        
-        guard let model = flyerModel else {
-            // モデルが読み込めなかった場合は、ラベル = "other" で返す
-            let lines = fullText
-                .split(whereSeparator: \.isNewline)
-                .map { String($0).trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-                .map { FlyerClassifiedText(text: $0, label: "other") }
-            print("⚠️ flyerModel == nil → 全行 other 扱い")
-            for l in lines {
-                print("[flyer] \(l.text)  ->  label=other, conf=1.0")
-            }
-            return (fullText, lines)
-        }
-        
         var results: [FlyerClassifiedText] = []
+
         let lineStrings = fullText
             .split(whereSeparator: \.isNewline)
             .map { String($0).trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         
-        print("===== Flyer OCR classified lines =====")
-        
+        guard let nlModel = flyerNLModel else {
+            // モデルがロードできない場合は、ラベル=otherでそのまま返す
+            for line in lineStrings {
+                results.append(
+                    FlyerClassifiedText(
+                        text: line,
+                        label: "other",
+                        confidence: 0.0
+                    )
+                )
+            }
+            return (fullText, results)
+        }
+
+        // NLModel で各行を予測
         for line in lineStrings {
-            do {
-                let prediction = try model.prediction(text: line)
-                let label = prediction.label                      // Create ML のラベル（String）
-                
-                print("[flyer] \"\(line)\"  ->  label=\(label)")
-                
-                results.append(FlyerClassifiedText(text: line,
-                                                   label: label))
-            } catch {
-                print("⚠️ flyer prediction failed for '\(line)': \(error)")
-                results.append(FlyerClassifiedText(text: line,
-                                                   label: "other"))
+            let hyps = nlModel.predictedLabelHypotheses(for: line, maximumCount: 4)
+            if let (bestLabel, prob) = hyps.max(by: { $0.value < $1.value }) {
+                print("[flyer-NL] \"\(line)\" -> \(bestLabel), conf=\(prob)")
+                results.append(
+                    FlyerClassifiedText(
+                        text: line,
+                        label: bestLabel,
+                        confidence: prob
+                    )
+                )
+            } else {
+                print("⚠️ flyer-NL produced no hypotheses for \"\(line)\"")
+                results.append(
+                    FlyerClassifiedText(
+                        text: line,
+                        label: "other",
+                        confidence: 0.0
+                    )
+                )
             }
         }
-        
-        print("===== End of flyer classification =====")
-        
+
         return (fullText, results)
     }
-    
-    /// TextClassifier_flyer のラベルに応じて、
-    /// 展覧会名・会場・会期・URL の候補をまとめて返す便利メソッド
-    /// （ラベル名は Create ML で付けたラベルに合わせて変更してね）
+
+    // MARK: - フィールド抽出の結果モデル
     struct FlyerExtractionResult {
         let rawText: String
         let classifiedLines: [FlyerClassifiedText]
@@ -102,25 +106,45 @@ struct TextRecognitionService {
     static func extractFlyerFields(from image: UIImage) async throws -> FlyerExtractionResult {
         let (raw, lines) = try await classifyFlyer(from: image)
         
-        // ★ここが TextClassifier_flyer の「ラベル名」に依存します！
-        //   Create ML のラベルに合わせて "title" / "venue" / "period" / "url" を
-        //   必要に応じて書き換えてください。
-        let titleLines  = lines.filter { $0.label == "title" }.map(\.text)
-        let venueLines  = lines.filter { $0.label == "venue" }.map(\.text)
-        let periodLines = lines.filter { $0.label == "period" }.map(\.text)
-        let urlLines    = lines.filter { $0.label == "url" }.map(\.text)
+        // ① 低 confidence 行を捨てる ----------------------------------
+        // ラベルごとのしきい値（暫定値。運用しながら調整）
+        let thresholds: [String: Double] = [
+            "title":  0.35,
+            "venue":  0.45,
+            "period": 0.40,
+            "url":    0.50
+        ]
         
-        // ラベル付き行が空なら、従来どおり全文を使って解析するフォールバック
+        func isHighConfidence(_ line: FlyerClassifiedText) -> Bool {
+            let th = thresholds[line.label] ?? 0.0   // 未知ラベルはフィルタしない
+            return line.confidence >= th
+        }
+        
+        let filteredLines = lines.filter(isHighConfidence)
+        
+        print("===== Flyer OCR classified lines (after confidence filter) =====")
+        for l in filteredLines {
+            let c = String(format: "%.3f", l.confidence)
+            print("[flyer-use] \"\(l.text)\" -> label=\(l.label), conf=\(c)")
+        }
+        print("===== End of flyer classification (filtered) =====")
+        
+        // ② ラベルごとにテキストを集める ----------------------------
+        let titleLines  = filteredLines.filter { $0.label == "title"  }.map(\.text)
+        let venueLines  = filteredLines.filter { $0.label == "venue"  }.map(\.text)
+        let periodLines = filteredLines.filter { $0.label == "period" }.map(\.text)
+        let urlLines    = filteredLines.filter { $0.label == "url"    }.map(\.text)
+        
+        // ③ ラベル付き行が空なら、従来どおり全文を使って解析するフォールバック
         let titleSource  = titleLines.isEmpty  ? raw : titleLines.joined(separator: "\n")
         let venueSource  = venueLines.isEmpty  ? raw : venueLines.joined(separator: "\n")
         let periodSource = periodLines.isEmpty ? raw : periodLines.joined(separator: "\n")
         let urlSource    = urlLines.isEmpty    ? raw : urlLines.joined(separator: "\n")
         
-        // 既存のヘルパー群をそのまま活かす
+        // ④ 既存のヘルパー群をそのまま活かす
         let titleCandidates = TitleExtractionService.candidates(from: titleSource)
         let venueCandidates = VenueExtractionService.candidates(from: venueSource)
         let dateCandidates  = DateParsingService.candidates(from: periodSource)
-        
         let urlCandidates   = extractURLs(from: urlSource)
         
         return FlyerExtractionResult(
@@ -133,6 +157,7 @@ struct TextRecognitionService {
         )
     }
     
+    // MARK: - URL 抽出ヘルパー
     /// テキストの中から http / https の URL だけを抜く簡易ヘルパー
     private static func extractURLs(from text: String) -> [String] {
         let pattern = #"https?://[^\s]+"#
@@ -144,13 +169,17 @@ struct TextRecognitionService {
             .map { ns.substring(with: $0.range) }
     }
     
+    // MARK: - 共通 OCR
     /// 画像からテキストを抽出（日本語/英語両対応）
     static func recognizeText(from image: UIImage) async throws -> String {
         guard let cg = image.cgImage else { throw TextRecognitionError.noImage }
         
         return try await withCheckedThrowingContinuation { cont in
             let req = VNRecognizeTextRequest { req, err in
-                if let err = err { return cont.resume(throwing: err) }
+                if let err = err {
+                    cont.resume(throwing: err)
+                    return
+                }
                 let texts = (req.results as? [VNRecognizedTextObservation])?
                     .compactMap { $0.topCandidates(1).first?.string }
                     .joined(separator: "\n")
@@ -169,3 +198,4 @@ struct TextRecognitionService {
         }
     }
 }
+
