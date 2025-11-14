@@ -78,13 +78,8 @@ struct ExhibitionFormView: View {
     private func handlePickedImage(_ image: UIImage) {
         Task {
             do {
-                // 画像 → テキスト
-                let text = try await TextRecognitionService.recognizeText(from: image)
-
-                // 各候補を抽出
-                let tCands = TitleExtractionService.candidates(from: text)
-                let vCands = VenueExtractionService.candidates(from: text)
-                let dCands = DateParsingService.candidates(from: text)
+                // ① TextClassifier_flyer を使った抽出
+                let result = try await TextRecognitionService.extractFlyerFields(from: image)
 
                 if let thumb = ImageThumbService.makeThumbnail(image) {
                     await MainActor.run {self.posterThumbData = thumb}
@@ -97,42 +92,46 @@ struct ExhibitionFormView: View {
                 }
 
                 await MainActor.run {
-                    self.titleOptions = tCands
-                    if self.title.isEmpty, let first = tCands.first { self.title = first }
-                    self.selectedTitle = self.title
-
-                    self.venueOptions = vCands
-                    if self.venue.isEmpty, let first = vCands.first { self.venue = first }
-                    self.selectedVenue = self.venue
-
-                    self.dateOptions = dCands
-                    if let first = dCands.first {
-                        self.startDate = min(first.0, first.1)
-                        self.endDate   = max(first.0, first.1)
-                        self.selectedDateIndex = 0
+                    self.titleOptions = result.titleCandidates
+                    self.venueOptions = result.venueCandidates
+                    self.dateOptions  = result.dateCandidates
+                    
+                    // フィールドがまだ空なら、一旦一番それっぽい候補を自動で入れておく
+                    if self.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       let firstTitle = result.titleCandidates.first {
+                        self.title = firstTitle
                     }
-                }
-
-                let missing = [
-                    tCands.isEmpty ? "展覧会名" : nil,
-                    vCands.isEmpty ? "会場名"   : nil,
-                    dCands.isEmpty ? "会期"     : nil
-                ].compactMap { $0 }
-                let message = missing.isEmpty ? nil : "以下の項目が読み取れませんでした：\n・" + missing.joined(separator: "\n・")
-                let needsReview = (tCands.count >= 2) || (vCands.count >= 2) || (dCands.count >= 2)
-
-                await MainActor.run {
-                    if needsReview {
-                        self.pendingAlertMessage = message
+                    
+                    if self.venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       let firstVenue = result.venueCandidates.first {
+                        self.venue = firstVenue
+                    }
+                    
+                    if (self.startDate == nil || self.endDate == nil),
+                       let firstPeriod = result.dateCandidates.first {
+                        self.startDate = firstPeriod.0
+                        self.endDate   = firstPeriod.1
+                    }
+                    
+                    // URL は、もし候補があれば一つだけ入れておく（複数あるケースもあるので適宜）
+                    if self.urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       let firstURL = result.urlCandidates.first {
+                        self.urlString = firstURL
+                    }
+                    
+                    // ④ どれかが不足していたら確認シートを出す（今のロジックを転用）
+                    let missingTitle = self.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let missingVenue = self.venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let missingDates = (self.startDate == nil || self.endDate == nil)
+                    
+                    if missingTitle || missingVenue || missingDates {
                         self.showReviewSheet = true
-                    } else if let msg = message {
-                        self.missingAlertMessage = msg
-                        self.showMissingAlert = true
                     }
                 }
             } catch {
+                // エラー時のアラートは今の実装と同じでOK
                 await MainActor.run {
-                    ocrAlertMessage = "テキスト認識に失敗しました：\(error.localizedDescription)"
+                    ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
                     showOcrAlert = true
                 }
             }
