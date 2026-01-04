@@ -57,8 +57,8 @@ struct DateParsingService {
     private static let sepRegex = try! NSRegularExpression(pattern: #"\s*[-—–~〜～»]{1,2}\s*"#)
 
     private static func normalize(_ s: String) -> String {
-        return s
-            // 全角→半角に寄せ＆よく出る装飾を素直化
+        var t = s
+            // --- 既存処理 ---
             .replacingOccurrences(of: "（", with: "(")
             .replacingOccurrences(of: "）", with: ")")
             .replacingOccurrences(of: "［", with: "[")
@@ -72,9 +72,43 @@ struct DateParsingService {
             .replacingOccurrences(of: "〜", with: "-")
             .replacingOccurrences(of: "～", with: "-")
             .replacingOccurrences(of: "»", with: "-")
-            // 曜日/中括弧の装飾は削除
+            // 曜日・中括弧削除
             .replacingOccurrences(of: #"\[[^\]]*\]"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\([^) ]*曜\)"#, with: "", options: .regularExpression)
+
+        // --- 追加改良①：圧縮 YYYYMM.DD / YYYYM.DD / YYYYMM.D / YYYYM.D → YYYY.MM.DD 形式へ展開 ---
+        // 例: 202511.22 → 2025.11.22
+        //     20251.22  → 2025.1.22
+        //     202511.3  → 2025.11.3
+        //     20251.3   → 2025.1.3
+        let compressedFlexible = try! NSRegularExpression(
+            pattern: #"(\d{4})(\d{1,2})\.(\d{1,2})"#
+        )
+        t = compressedFlexible.stringByReplacingMatches(
+            in: t,
+            range: NSRange(t.startIndex..., in: t),
+            withTemplate: "$1.$2.$3"
+        )
+
+        // --- 追加改良②：誤認識 SAT → 5AT 補正 ---
+        t = t.replacingOccurrences(of: "5AT", with: "SAT")
+             .replacingOccurrences(of: "5at", with: "SAT")
+             .replacingOccurrences(of: "5At", with: "SAT")
+
+        // --- 追加改良③：変な矢印系は “-” へ統一 ---
+        t = t.replacingOccurrences(of: "→", with: "-")
+             .replacingOccurrences(of: "＞", with: "-")
+             .replacingOccurrences(of: ">", with: "-")
+
+        // --- 追加改良④：曜日 + 余分記号 を削除（WED. → WED） ---
+        let dayTail = try! NSRegularExpression(pattern: #"(MON|TUE|WED|THU|FRI|SAT|SUN)[\.\> ]+"#, options: .caseInsensitive)
+        t = dayTail.stringByReplacingMatches(
+            in: t,
+            range: NSRange(t.startIndex..., in: t),
+            withTemplate: "$1"
+        )
+
+        return t
     }
 
     // MARK: - パターン
@@ -196,5 +230,24 @@ struct DateParsingService {
 
     private static func ordered(_ a: Date, _ b: Date) -> (Date, Date) {
         (min(a, b), max(a, b))
+    }
+    
+    /// 文字列が「明らかに期間っぽい見た目」かどうかだけ判定する
+    static func looksLikePeriodText(_ text: String) -> Bool {
+        let t = text.replacingOccurrences(of: " ", with: "")
+
+        // ① 圧縮 YYYYMM.DD っぽいものを含んでいるか
+        let condensedPattern = #"\d{4}\d{1,2}\.\d{1,2}"#   // 202511.22 など
+        if t.range(of: condensedPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // ② MM.DD〜MM.DD / MM.DD→MM.DD / MM.DD-MM.DD っぽいもの
+        let rangePattern = #"\d{1,2}\.\d{1,2}\s*[→\-〜~ー–—]\s*\d{1,2}\.\d{1,2}"#
+        if t.range(of: rangePattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        return false
     }
 }

@@ -10,6 +10,7 @@
 		553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */ = {isa = PBXBuildFile; productRef = 553ACEE62EC36F6900F341A1 /* CropViewController */; };
 		553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */ = {isa = PBXBuildFile; productRef = 553ACEE82EC36F6900F341A1 /* TOCropViewController */; };
 		55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = 55705A1A2E8FD30E00FB2905 /* HorizonCalendar */; };
+		55EBEB542F0A3A0F00D5EE2E /* GoogleGenerativeAI in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEB532F0A3A0F00D5EE2E /* GoogleGenerativeAI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 				55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */,
 				553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */,
 				553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */,
+				55EBEB542F0A3A0F00D5EE2E /* GoogleGenerativeAI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 				55705A1A2E8FD30E00FB2905 /* HorizonCalendar */,
 				553ACEE62EC36F6900F341A1 /* CropViewController */,
 				553ACEE82EC36F6900F341A1 /* TOCropViewController */,
+				55EBEB532F0A3A0F00D5EE2E /* GoogleGenerativeAI */,
 			);
 			productName = ArtNote;
 			productReference = 557059D12E8FAA6500FB2905 /* ExhibitNote.app */;
@@ -122,6 +125,7 @@
 			packageReferences = (
 				55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */,
 				553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */,
+				55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 557059D22E8FAA6500FB2905 /* Products */;
@@ -383,6 +387,14 @@
 				kind = branch;
 			};
 		};
+		55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google-gemini/deprecated-generative-ai-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -400,6 +412,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */;
 			productName = HorizonCalendar;
+		};
+		55EBEB532F0A3A0F00D5EE2E /* GoogleGenerativeAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */;
+			productName = GoogleGenerativeAI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

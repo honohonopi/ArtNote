@@ -206,6 +206,27 @@ struct HomeNearbySectionView: View {
     }
 }
 
+struct HomeSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("useAIExtraction") private var useAIExtraction = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("画像解析") {
+                    Toggle("AIを使って精度を上げる", isOn: $useAIExtraction)
+                }
+            }
+            .navigationTitle("設定")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
@@ -227,6 +248,7 @@ struct HomeView: View {
     @State private var isAdjustingRadius = false
     
     @State private var selectedPinID: UUID? = nil
+    @State private var showSettings = false
     
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
@@ -313,7 +335,13 @@ struct HomeView: View {
             .navigationTitle("ホーム")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // あとでアプリ設定用の画面を実装
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
             }
             .navigationDestination(for: Exhibition.self) { ex in
                 ExhibitionDetailView(exhibition: ex)
@@ -340,7 +368,9 @@ struct HomeView: View {
             .onChange(of: allExhibitions.count) { _ in
                 recomputeNearby()
             }
+            .sheet(isPresented: $showSettings) {
+                HomeSettingsView()
+            }
         }
     }
 }
-

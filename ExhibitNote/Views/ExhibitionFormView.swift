@@ -16,6 +16,7 @@ import UIKit
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @AppStorage("useAIExtraction") private var useAIExtraction = false
     
     @State private var title = ""
     @State private var venue = ""
@@ -37,6 +38,9 @@ struct ExhibitionFormView: View {
     @State private var selectedTitle: String?
     @State private var selectedVenue: String?
     @State private var selectedDateIndex: Int = 0
+    @State private var hasManuallyEditedDates = false
+    @State private var isApplyingAutoDates = false
+    @State private var isAIAnalyzing = false
     
     // UI制御
     @State private var showReviewSheet = false
@@ -65,8 +69,8 @@ struct ExhibitionFormView: View {
     struct MapPickerPayload: Identifiable {
         let id = UUID()
         let query: String
-    }
-    
+}
+
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
         let f = DateFormatter()
@@ -78,8 +82,23 @@ struct ExhibitionFormView: View {
     private func handlePickedImage(_ image: UIImage) {
         Task {
             do {
-                // ① TextClassifier_flyer を使った抽出
-                let result = try await TextRecognitionService.extractFlyerFields(from: image)
+                // ① 画像から情報抽出（設定で AI / OCR を切り替え）
+                let result: TextRecognitionService.FlyerExtractionResult
+                var usedAI = false
+                let shouldUseAI = useAIExtraction
+                if shouldUseAI {
+                    await MainActor.run { isAIAnalyzing = true }
+                }
+                if useAIExtraction {
+                    do {
+                        result = try await TextRecognitionService.extractFlyerFieldsWithAI(from: image)
+                        usedAI = true
+                    } catch {
+                        result = try await TextRecognitionService.extractFlyerFields(from: image)
+                    }
+                } else {
+                    result = try await TextRecognitionService.extractFlyerFields(from: image)
+                }
 
                 if let thumb = ImageThumbService.makeThumbnail(image) {
                     await MainActor.run {self.posterThumbData = thumb}
@@ -107,10 +126,12 @@ struct ExhibitionFormView: View {
                         self.venue = firstVenue
                     }
                     
-                    if (self.startDate == nil || self.endDate == nil),
+                    if !self.hasManuallyEditedDates,
                        let firstPeriod = result.dateCandidates.first {
+                        self.isApplyingAutoDates = true
                         self.startDate = firstPeriod.0
                         self.endDate   = firstPeriod.1
+                        self.isApplyingAutoDates = false
                     }
                     
                     // URL は、もし候補があれば一つだけ入れておく（複数あるケースもあるので適宜）
@@ -122,19 +143,70 @@ struct ExhibitionFormView: View {
                     // ④ どれかが不足していたら確認シートを出す（今のロジックを転用）
                     let missingTitle = self.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     let missingVenue = self.venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let missingDates = (self.startDate == nil || self.endDate == nil)
+                    let missingDates = self.dateOptions.isEmpty
                     
                     if missingTitle || missingVenue || missingDates {
                         self.showReviewSheet = true
+                    }
+                    if shouldUseAI {
+                        self.isAIAnalyzing = false
+                        let generator = UIImpactFeedbackGenerator(style: .light)
+                        generator.impactOccurred()
+                    }
+                }
+
+                if usedAI {
+                    if let venuePOI = result.venuePOI, !venuePOI.isEmpty {
+                        print("🤖 AI venue_poi: \"\(venuePOI)\"")
+                        await autoResolveAddress(from: venuePOI)
+                    } else if let firstVenue = result.venueCandidates.first {
+                        print("🤖 AI venue candidate: \"\(firstVenue)\"")
+                        await autoResolveAddress(from: firstVenue)
+                    } else {
+                        print("🤖 AI venue candidate: <empty>")
                     }
                 }
             } catch {
                 // エラー時のアラートは今の実装と同じでOK
                 await MainActor.run {
+                    if useAIExtraction {
+                        self.isAIAnalyzing = false
+                    }
                     ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
                     showOcrAlert = true
                 }
             }
+        }
+    }
+
+    private func autoResolveAddress(from venue: String) async {
+        let trimmed = venue.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("📍 autoResolveAddress start: \"\(trimmed)\"")
+        guard !trimmed.isEmpty else { return }
+        guard addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            print("📍 address already filled, skip auto resolve")
+            return
+        }
+
+        if let result = try? await VenueGeocodingService.geocodeWithAddress(trimmed) {
+            await MainActor.run {
+                if addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   let addr = result.address, !addr.isEmpty {
+                    addressLine = addr
+                    print("📍 auto address filled: \"\(addr)\"")
+                } else {
+                    print("📍 auto address not filled (no addr or already set)")
+                }
+                if tempCoordinate == nil {
+                    tempCoordinate = result.coordinate
+                    previewRegion.center = result.coordinate
+                    previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                } else {
+                    print("📍 coordinate already set, skip update")
+                }
+            }
+        } else {
+            print("📍 geocodeWithAddress returned nil")
         }
     }
     
@@ -184,7 +256,19 @@ struct ExhibitionFormView: View {
             Form {
                 Section("基本情報") {
                     TextField("展覧会名", text: $title)
+                        .overlay(alignment: .trailing) {
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
                     TextField("会場", text: $venue)
+                        .overlay(alignment: .trailing) {
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
                         .onSubmit {
                             triggerGeocoding()
                         }
@@ -192,6 +276,12 @@ struct ExhibitionFormView: View {
                         TextField("会場住所（任意）", text: $addressLine)   // ← 住所用の @State を持っていなければ追加
                             .textInputAutocapitalization(.never)
                             .disableAutocorrection(true)
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
                         Button {
                             // 住所があれば住所、なければ会場名。空なら何もしない
                             let q = addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -211,13 +301,37 @@ struct ExhibitionFormView: View {
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
                         .environment(\.calendar, Calendar(identifier: .gregorian))
+                        .onChange(of: startDate) { _ in
+                            if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
                     DatePicker("終了日", selection: $endDate, displayedComponents: .date)
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
                         .environment(\.calendar, Calendar(identifier: .gregorian))
+                        .onChange(of: endDate) { _ in
+                            if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                        }
+                        .overlay(alignment: .trailing) {
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
                     TextField("公式URL（任意）", text: $urlString)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
+                        .overlay(alignment: .trailing) {
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
                 }
                 Section("ポスターから自動入力") {
                     Menu {
@@ -279,6 +393,21 @@ struct ExhibitionFormView: View {
             }
             .navigationTitle("展覧会を追加")
             .navigationBarTitleDisplayMode(.inline)
+            .overlay(alignment: .top) {
+                if isAIAnalyzing {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.9)
+                        Text("ポスターを解析中…")
+                            .font(.subheadline)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(.top, 0)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }
@@ -348,7 +477,10 @@ struct ExhibitionFormView: View {
                                 if let v = selectedVenue { venue = v }
                                 if dateOptions.indices.contains(selectedDateIndex) {
                                     let p = dateOptions[selectedDateIndex]
+                                    isApplyingAutoDates = true
                                     startDate = min(p.0, p.1); endDate = max(p.0, p.1)
+                                    isApplyingAutoDates = false
+                                    hasManuallyEditedDates = true
                                 }
                                 showReviewSheet = false
                                 
