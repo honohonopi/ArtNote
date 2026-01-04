@@ -29,6 +29,10 @@ final class Exhibition {
     var latitude: Double?
     var longitude: Double?
     var address: String?
+
+    var catalogImported: Bool = false
+    var noteCount: Int?
+    var lastViewedNoteIndex: Int?
     
     // 訪問フラッグ
     var visited: Bool = false

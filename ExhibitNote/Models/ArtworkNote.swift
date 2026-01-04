@@ -14,6 +14,8 @@ final class ArtworkNote {
     @Attribute(.unique) var id: String
     var exhibitionId: String
     var catalogNumber: String
+    var catalogIndex: Int?
+    var displayCatalogNumber: String?
     var memo: String
     var audioId: String?
     var createdAt: Date
@@ -31,6 +33,8 @@ final class ArtworkNote {
     init(id: String = UUID().uuidString,
          exhibitionId: String,
          catalogNumber: String,
+         catalogIndex: Int? = nil,
+         displayCatalogNumber: String? = nil,
          memo: String,
          audioId: String? = nil,
          createdAt: Date = .now,
@@ -38,9 +42,26 @@ final class ArtworkNote {
         self.id = id
         self.exhibitionId = exhibitionId
         self.catalogNumber = catalogNumber
+        self.catalogIndex = catalogIndex
+        self.displayCatalogNumber = displayCatalogNumber
         self.memo = memo
         self.audioId = audioId
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+}
+
+extension ArtworkNote {
+    var resolvedDisplayNumber: String {
+        if let d = displayCatalogNumber?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !d.isEmpty {
+            return d
+        }
+        return catalogNumber
+    }
+    
+    var resolvedCatalogIndex: Int {
+        if let i = catalogIndex { return i }
+        return Int(catalogNumber) ?? 0
     }
 }

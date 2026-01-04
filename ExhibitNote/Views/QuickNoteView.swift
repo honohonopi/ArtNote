@@ -54,7 +54,17 @@ struct QuickNoteView: View {
     }
     
     private func save() {
-        let note = ArtworkNote(exhibitionId: exhibition.id, catalogNumber: catalogNumber, memo: memo)
+        let trimmedNumber = catalogNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedIndex = Int(trimmedNumber)
+        let displayValue = parsedIndex == nil ? trimmedNumber : (trimmedNumber == String(parsedIndex!) ? nil : trimmedNumber)
+        let storedNumber = parsedIndex.map { String($0) } ?? trimmedNumber
+        let note = ArtworkNote(
+            exhibitionId: exhibition.id,
+            catalogNumber: storedNumber,
+            catalogIndex: parsedIndex,
+            displayCatalogNumber: displayValue,
+            memo: memo
+        )
         context.insert(note)
         catalogNumber = ""; memo = ""; UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }

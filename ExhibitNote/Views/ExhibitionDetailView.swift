@@ -23,6 +23,8 @@ struct ExhibitionDetailView: View {
     
     @Query private var notes: [ArtworkNote]
     @State private var showQuick = false
+    @State private var showStartChoice = false
+    @State private var showCatalogImportSheet = false
     
     @State private var showPlanner = false
     @State private var visitDate = Date()
@@ -35,7 +37,8 @@ struct ExhibitionDetailView: View {
         self.exhibition = exhibition
         let exId = exhibition.id
         _notes = Query(filter: #Predicate<ArtworkNote> { n in n.exhibitionId == exId },
-                       sort: [SortDescriptor(\.catalogNumber, order: .forward)])
+                       sort: [SortDescriptor(\.catalogIndex, order: .forward),
+                              SortDescriptor(\.catalogNumber, order: .forward)])
     }
     
     private func encoded(_ s: String) -> String {
@@ -65,7 +68,11 @@ struct ExhibitionDetailView: View {
         List {
             Section {
                 Button {
-                    showQuick = true
+                    if exhibition.catalogImported {
+                        showQuick = true
+                    } else {
+                        showStartChoice = true
+                    }
                 } label: {
                     Label("鑑賞モードを開始", systemImage: "square.and.pencil")
                         .font(.headline)
@@ -109,15 +116,24 @@ struct ExhibitionDetailView: View {
                 Text("概要")
             }
             Section {
-                ForEach(notes) { n in
+                let filledNotes = notes.filter {
+                    !$0.memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                if filledNotes.isEmpty {
+                    Text("鑑賞モードからメモを追加しましょう！")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(filledNotes) { n in
                     VStack(alignment: .leading, spacing: 6) {
                         // 目録番号 + 日付行
                         HStack {
-                            Text("#\(n.catalogNumber)")
+                            Text("#\(n.resolvedDisplayNumber)")
                                 .font(.caption)
                                 .monospaced()
                             Spacer()
-                            Text(n.createdAt, style: .date)
+                            Text(n.updatedAt.ymdString)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -152,6 +168,7 @@ struct ExhibitionDetailView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    }
                 }
             } header: {
                 HStack {
@@ -161,9 +178,24 @@ struct ExhibitionDetailView: View {
         }
         
         .navigationTitle("詳細")
+        .confirmationDialog("目録を読み込んで開始しますか？", isPresented: $showStartChoice) {
+            Button("目録を読み込んで開始する") {
+                showCatalogImportSheet = true
+            }
+            Button("後で読み込む") {
+                showQuick = true
+            }
+        }
         .sheet(isPresented: $showQuick) {
             CardPagingNoteView(exhibition: exhibition)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showCatalogImportSheet) {
+            CatalogImportStartView(exhibition: exhibition) {
+                showCatalogImportSheet = false
+                showQuick = true
+            }
+            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showPlanner) {
             NavigationStack {
@@ -346,3 +378,48 @@ struct ExhibitionDetailView: View {
     }
 }
 
+private struct CatalogImportStartView: View {
+    @Environment(\.dismiss) private var dismiss
+    let exhibition: Exhibition
+    let onStart: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("読み込み方法") {
+                    Button {
+                        startImport()
+                    } label: {
+                        Label("画像ライブラリから選ぶ", systemImage: "photo.on.rectangle")
+                    }
+                    Button {
+                        startImport()
+                    } label: {
+                        Label("カメラで撮る", systemImage: "camera.viewfinder")
+                    }
+                    Button {
+                        startImport()
+                    } label: {
+                        Label("PDFを選ぶ", systemImage: "doc.richtext")
+                    }
+                }
+                Section {
+                    Text("目録読み込みのAI処理は次のステップで実装します。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("目録を読み込む")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+        }
+    }
+    
+    private func startImport() {
+        exhibition.catalogImported = true
+        onStart()
+    }
+}

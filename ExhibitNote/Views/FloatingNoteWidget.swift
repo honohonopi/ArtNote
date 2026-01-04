@@ -12,6 +12,7 @@ struct FloatingNoteWidget: View {
     let mini: AppOverlayState.MinimizedNote
 
     @State private var dragOffset: CGSize = .zero
+    @State private var settledOffset: CGSize = .zero
 
     var body: some View {
         HStack(spacing: 8) {
@@ -30,7 +31,18 @@ struct FloatingNoteWidget: View {
         .background(Capsule().fill((mini.exhibition.swiftUIColor ?? .blue).opacity(0.12)))
         .overlay(Capsule().stroke((mini.exhibition.swiftUIColor ?? .blue).opacity(0.35), lineWidth: 1))
         .offset(dragOffset)
-        .gesture(DragGesture().onChanged { dragOffset = $0.translation })
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    dragOffset = CGSize(
+                        width: settledOffset.width + value.translation.width,
+                        height: settledOffset.height + value.translation.height
+                    )
+                }
+                .onEnded { _ in
+                    settledOffset = dragOffset
+                }
+        )
         .shadow(radius: 4, y: 2)
         .onTapGesture {
             overlay.restorePayload = mini

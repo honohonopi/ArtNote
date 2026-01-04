@@ -11,7 +11,7 @@ final class AppOverlayState: ObservableObject {
     struct MinimizedNote: Identifiable, Equatable {
         let id = UUID()
         let exhibition: Exhibition
-        let currentIndex: Int   // 鑑賞モードの“表示番号” (1,2,3…)
+        let currentIndex: Int   // 鑑賞モードの“管理インデックス” (1,2,3…)
     }
 
     @Published var minimized: MinimizedNote? = nil      // 右下のフローティング表示用
