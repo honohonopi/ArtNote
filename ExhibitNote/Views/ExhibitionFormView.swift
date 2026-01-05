@@ -65,6 +65,19 @@ struct ExhibitionFormView: View {
     
     @State private var mapInitialQuery: String? = nil
     @State private var addressLine = ""
+
+    @State private var scheduleOpenTime: String? = nil
+    @State private var scheduleCloseTime: String? = nil
+    @State private var scheduleLastEntryTime: String? = nil
+    @State private var scheduleClosedWeekdays: [Weekday] = []
+    @State private var scheduleHolidayHandling: HolidayHandling? = nil
+    @State private var scheduleClosedDates: [Date] = []
+    @State private var scheduleOpenDates: [Date] = []
+    @State private var scheduleSpecialOpenings: [SpecialOpening] = []
+
+    @State private var admissionFees: [AdmissionFee] = []
+    @State private var reservationRequired: Bool? = nil
+    @State private var showAdmissionFees = false
     
     struct MapPickerPayload: Identifiable {
         let id = UUID()
@@ -166,6 +179,35 @@ struct ExhibitionFormView: View {
                         print("🤖 AI venue candidate: <empty>")
                     }
                 }
+                await MainActor.run {
+                    if let schedule = result.schedule {
+                        scheduleOpenTime = schedule.openTime
+                        scheduleCloseTime = schedule.closeTime
+                        scheduleLastEntryTime = schedule.lastEntryTime
+                        scheduleClosedWeekdays = schedule.closedWeekdays
+                        scheduleHolidayHandling = schedule.holidayHandling
+                        scheduleClosedDates = schedule.closedDates
+                        scheduleOpenDates = schedule.openDates
+                        scheduleSpecialOpenings = schedule.specialOpenings
+                    } else {
+                        scheduleOpenTime = nil
+                        scheduleCloseTime = nil
+                        scheduleLastEntryTime = nil
+                        scheduleClosedWeekdays = []
+                        scheduleHolidayHandling = nil
+                        scheduleClosedDates = []
+                        scheduleOpenDates = []
+                        scheduleSpecialOpenings = []
+                    }
+                }
+                if usedAI {
+                    if let extra = await TextRecognitionService.extractExtraInfoWithAI(from: image) {
+                        await MainActor.run {
+                            admissionFees = extra.fees
+                            reservationRequired = extra.reservationRequired
+                        }
+                    }
+                }
             } catch {
                 // エラー時のアラートは今の実装と同じでOK
                 await MainActor.run {
@@ -220,6 +262,26 @@ struct ExhibitionFormView: View {
                             endDate: endDate,
                             url: URL(string: urlString),
                             catalogTotalCount: total)
+        ex.scheduleOpenTime = scheduleOpenTime
+        ex.scheduleCloseTime = scheduleCloseTime
+        ex.scheduleLastEntryTime = scheduleLastEntryTime
+        ex.scheduleClosedWeekdays = scheduleClosedWeekdays.map { $0.rawValue }
+        ex.scheduleHolidayHandling = scheduleHolidayHandling.map { holidayHandlingRaw($0) }
+        ex.scheduleClosedDates = scheduleClosedDates
+        ex.scheduleOpenDates = scheduleOpenDates
+        ex.scheduleSpecialOpenings = scheduleSpecialOpenings.map {
+            Exhibition.SpecialOpeningRecord(
+                ruleType: specialOpeningRuleType($0.rule),
+                date: specialOpeningRuleDate($0.rule),
+                weekday: specialOpeningRuleWeekday($0.rule),
+                openTime: $0.openTime,
+                closeTime: $0.closeTime,
+                lastEntryTime: $0.lastEntryTime,
+                note: $0.note
+            )
+        }
+        ex.admissionFees = admissionFees
+        ex.reservationRequired = reservationRequired
         ex.posterThumbData = posterThumbData
         if let c = tempCoordinate {
             ex.setCoordinate(c)
@@ -251,29 +313,164 @@ struct ExhibitionFormView: View {
         }
     }
     
+    private var hasScheduleInfo: Bool {
+        scheduleOpenTime != nil ||
+        scheduleCloseTime != nil ||
+        scheduleLastEntryTime != nil ||
+        !scheduleClosedWeekdays.isEmpty ||
+        scheduleHolidayHandling != nil ||
+        !scheduleClosedDates.isEmpty ||
+        !scheduleOpenDates.isEmpty ||
+        !scheduleSpecialOpenings.isEmpty
+    }
+    
+    private func scheduleClosedWeekdaysText() -> String {
+        let map: [Weekday: String] = [
+            .monday: "月",
+            .tuesday: "火",
+            .wednesday: "水",
+            .thursday: "木",
+            .friday: "金",
+            .saturday: "土",
+            .sunday: "日"
+        ]
+        let labels = scheduleClosedWeekdays.compactMap { map[$0] }
+        return labels.joined(separator: "・")
+    }
+    
+    private func holidayHandlingText(_ value: HolidayHandling) -> String {
+        switch value {
+        case .none:
+            return "祝日規定なし"
+        case .openOnHoliday:
+            return "祝日は開館"
+        case .openOnHolidayCloseNextWeekday:
+            return "祝日開館・翌平日休館"
+        }
+    }
+
+    private func holidayHandlingRaw(_ value: HolidayHandling) -> String {
+        switch value {
+        case .none:
+            return "NONE"
+        case .openOnHoliday:
+            return "OPEN_ON_HOLIDAY"
+        case .openOnHolidayCloseNextWeekday:
+            return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
+        }
+    }
+    
+    private func dateListText(_ dates: [Date]) -> String {
+        let sorted = dates.sorted()
+        return sorted.map { $0.ymdString }.joined(separator: " / ")
+    }
+    
+    private func specialOpeningsText(_ openings: [SpecialOpening]) -> String {
+        let sorted = openings.sorted { left, right in
+            switch (left.rule, right.rule) {
+            case (.date(let l), .date(let r)):
+                return l < r
+            case (.date, .weekday):
+                return true
+            case (.weekday, .date):
+                return false
+            case (.weekday(let l), .weekday(let r)):
+                return l.rawValue < r.rawValue
+            }
+        }
+        return sorted.map { entry in
+            let base: String
+            switch entry.rule {
+            case .date(let date):
+                base = "\(date.ymdString) \(entry.openTime)–\(entry.closeTime)"
+            case .weekday(let weekday):
+                base = "\(weekdayLabel(weekday)) \(entry.openTime)–\(entry.closeTime)"
+            }
+            var text = base
+            if let last = entry.lastEntryTime, !last.isEmpty {
+                text += "（最終入場 \(last)）"
+            }
+            if let note = entry.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                text += " \(note)"
+            }
+            return text
+        }
+        .joined(separator: " / ")
+    }
+
+    private func admissionPriceText(_ fee: AdmissionFee) -> String {
+        if fee.category == .free || fee.priceYen == nil {
+            return "無料"
+        }
+        return "\(fee.priceYen ?? 0)円"
+    }
+
+    private func weekdayLabel(_ weekday: Weekday) -> String {
+        switch weekday {
+        case .monday: return "毎週月曜"
+        case .tuesday: return "毎週火曜"
+        case .wednesday: return "毎週水曜"
+        case .thursday: return "毎週木曜"
+        case .friday: return "毎週金曜"
+        case .saturday: return "毎週土曜"
+        case .sunday: return "毎週日曜"
+        }
+    }
+
+    private func specialOpeningRuleType(_ rule: SpecialOpening.Rule) -> String {
+        switch rule {
+        case .date: return "date"
+        case .weekday: return "weekday"
+        }
+    }
+
+    private func specialOpeningRuleDate(_ rule: SpecialOpening.Rule) -> Date? {
+        switch rule {
+        case .date(let date): return date
+        case .weekday: return nil
+        }
+    }
+
+    private func specialOpeningRuleWeekday(_ rule: SpecialOpening.Rule) -> String? {
+        switch rule {
+        case .date: return nil
+        case .weekday(let weekday): return weekday.rawValue
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("基本情報") {
-                    TextField("展覧会名", text: $title)
-                        .overlay(alignment: .trailing) {
-                            if isAIAnalyzing {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
-                        }
-                    TextField("会場", text: $venue)
-                        .overlay(alignment: .trailing) {
-                            if isAIAnalyzing {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
-                        }
-                        .onSubmit {
-                            triggerGeocoding()
-                        }
                     HStack(spacing: 8) {
-                        TextField("会場住所（任意）", text: $addressLine)   // ← 住所用の @State を持っていなければ追加
+                        Image(systemName: "a.square")
+                            .foregroundStyle(.secondary)
+                        TextField("展覧会名", text: $title)
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "building.columns")
+                            .foregroundStyle(.secondary)
+                        TextField("会場", text: $venue)
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
+                            .onSubmit {
+                                triggerGeocoding()
+                            }
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "mappin.and.ellipse")
+                            .foregroundStyle(.secondary)
+                        TextField("会場住所（任意）", text: $addressLine)
                             .textInputAutocapitalization(.never)
                             .disableAutocorrection(true)
                             .overlay(alignment: .trailing) {
@@ -290,48 +487,123 @@ struct ExhibitionFormView: View {
                             guard !q.isEmpty else { return }
                             mapPickerPayload = MapPickerPayload(query: q)   // ← これでシートを開く
                         } label: {
-                            Image(systemName: "mappin.and.ellipse")
+                            Image(systemName: "map")
                                 .imageScale(.large)
                                 .foregroundStyle(.blue)   // ← 青に
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("地図で位置を選ぶ")
                     }
-                    DatePicker("開始日", selection: $startDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "ja_JP"))
-                        .environment(\.calendar, Calendar(identifier: .gregorian))
-                        .onChange(of: startDate) { _ in
-                            if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(.secondary)
+                        DatePicker("開始日", selection: $startDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .environment(\.locale, Locale(identifier: "ja_JP"))
+                            .environment(\.calendar, Calendar(identifier: .gregorian))
+                            .onChange(of: startDate) { _ in
+                                if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                            }
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(.secondary)
+                        DatePicker("終了日", selection: $endDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .environment(\.locale, Locale(identifier: "ja_JP"))
+                            .environment(\.calendar, Calendar(identifier: .gregorian))
+                            .onChange(of: endDate) { _ in
+                                if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                            }
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
+                    }
+                    HStack(spacing: 8) {
+                        Image(systemName: "link")
+                            .foregroundStyle(.secondary)
+                        TextField("公式URL（任意）", text: $urlString)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .overlay(alignment: .trailing) {
+                                if isAIAnalyzing {
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                }
+                            }
+                    }
+
+                }
+                Section("チケット情報") {
+                    DisclosureGroup(isExpanded: $showAdmissionFees) {
+                        if admissionFees.isEmpty {
+                            Text("未取得")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(admissionFees) { fee in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(fee.label)
+                                        Spacer()
+                                        Text(admissionPriceText(fee))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !note.isEmpty {
+                                        Text(note)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
                         }
-                        .overlay(alignment: .trailing) {
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "yensign.circle")
+                                .foregroundStyle(.secondary)
+                            Text("入館料")
+                                .foregroundStyle(.primary)
+                            Spacer()
                             if isAIAnalyzing {
                                 ProgressView()
                                     .scaleEffect(0.7)
                             }
                         }
-                    DatePicker("終了日", selection: $endDate, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "ja_JP"))
-                        .environment(\.calendar, Calendar(identifier: .gregorian))
-                        .onChange(of: endDate) { _ in
-                            if !isApplyingAutoDates { hasManuallyEditedDates = true }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: showAdmissionFees)
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.secondary)
+                        Text("予約情報")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if reservationRequired == true {
+                            Text("事前予約制")
+                        } else if reservationRequired == false {
+                            Text("予約不要")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("未取得")
+                                .foregroundStyle(.secondary)
                         }
-                        .overlay(alignment: .trailing) {
-                            if isAIAnalyzing {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
+                        if isAIAnalyzing {
+                            ProgressView()
+                                .scaleEffect(0.7)
                         }
-                    TextField("公式URL（任意）", text: $urlString)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .overlay(alignment: .trailing) {
-                            if isAIAnalyzing {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            }
-                        }
+                    }
+                }
+                Section {
+                    Text("開館情報")
                 }
                 Section("ポスターから自動入力") {
                     Menu {
@@ -403,7 +675,7 @@ struct ExhibitionFormView: View {
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(Color.blue.opacity(0.2), in: Capsule())
                     .padding(.top, 0)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }

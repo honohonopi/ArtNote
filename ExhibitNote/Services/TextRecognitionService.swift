@@ -101,8 +101,20 @@ struct TextRecognitionService {
         let titleCandidates: [String]
         let venueCandidates: [String]
         let venuePOI: String?
+        let schedule: ScheduleExtraction?
         let dateCandidates: [(Date, Date)]
         let urlCandidates: [String]
+    }
+
+    struct ScheduleExtraction {
+        let openTime: String?
+        let closeTime: String?
+        let lastEntryTime: String?
+        let closedWeekdays: [Weekday]
+        let holidayHandling: HolidayHandling?
+        let closedDates: [Date]
+        let openDates: [Date]
+        let specialOpenings: [SpecialOpening]
     }
 
     private struct GeminiFlyerResponse: Decodable {
@@ -112,7 +124,45 @@ struct TextRecognitionService {
         let periodText: String?
         let startDate: String?
         let endDate: String?
+        let regularSchedule: GeminiRegularSchedule?
+        let exceptions: GeminiExceptions?
         let url: String?
+    }
+
+    private struct GeminiRegularSchedule: Decodable {
+        let openTime: String?
+        let closeTime: String?
+        let lastEntryTime: String?
+        let closedWeekdays: [String]?
+        let holidayHandling: String?
+    }
+
+    private struct GeminiExceptions: Decodable {
+        let closedDates: [String]?
+        let openDates: [String]?
+        let specialOpenings: [GeminiSpecialOpening]?
+    }
+
+    private struct GeminiSpecialOpening: Decodable {
+        let date: String?
+        let openTime: String?
+        let closeTime: String?
+        let lastEntryTime: String?
+        let note: String?
+    }
+
+    private struct GeminiExtraInfoResponse: Decodable {
+        let admission: GeminiAdmission?
+        let reservationRequired: Bool?
+        
+        private enum CodingKeys: String, CodingKey {
+            case admission
+            case reservationRequired = "reservation_required"
+        }
+    }
+
+    private struct GeminiAdmission: Decodable {
+        let fees: [AdmissionFee]?
     }
     
     static func extractFlyerFields(from image: UIImage) async throws -> FlyerExtractionResult {
@@ -229,6 +279,7 @@ struct TextRecognitionService {
             titleCandidates: titleCandidates,
             venueCandidates: venueCandidates,
             venuePOI: nil,
+            schedule: nil,
             dateCandidates: dateCandidates,
             urlCandidates: urlCandidates
         )
@@ -239,19 +290,140 @@ struct TextRecognitionService {
     static func extractFlyerFieldsWithAI(from image: UIImage) async throws -> FlyerExtractionResult {
         let model = GenerativeModel(name: "gemini-2.5-flash-lite", apiKey: APIKey.default)
         let prompt = """
-        You are extracting exhibition information from a poster image.
+        You are extracting factual exhibition information from a Japanese exhibition poster image.
 
-        Respond ONLY in JSON (no code fences, no extra text) with the following keys:
+        Respond ONLY in valid JSON.
+        Do NOT include explanations, markdown, or extra text.
 
-        - title: exhibition title
-        - venue: the venue name as written on the poster (may include gallery or room names)
-        - venue_poi: a simplified venue name suitable for map/POI search (e.g. museum or building name only)
-        - period_text: exhibition period text
-        - start_date: start date in YYYY-MM-DD
-        - end_date: end date in YYYY-MM-DD
-        - url: official website URL
+        --------------------------------
+        GENERAL RULES
+        --------------------------------
+        - Extract ONLY factual information explicitly written on the poster.
+        - Do NOT infer, interpret, or normalize meanings beyond the instructions below.
+        - Do NOT include exhibition descriptions, artist explanations, curatorial texts, or event descriptions.
+        - If information is not clearly stated, use null or empty arrays.
+        - Dates must be converted to YYYY-MM-DD.
+        - Times must be converted to 24-hour HH:mm format.
 
-        Use null for unknown values.
+        --------------------------------
+        OUTPUT FORMAT
+        --------------------------------
+
+        {
+          "title": string,
+          "venue": string,
+          "venue_poi": string,
+
+          "period": {
+            "start_date": "YYYY-MM-DD",
+            "end_date": "YYYY-MM-DD",
+            "period_text": string
+          },
+
+          "regular_schedule": {
+            "open_time": "HH:mm",
+            "close_time": "HH:mm",
+            "last_entry_time": "HH:mm" | null,
+            "closed_weekdays": [
+              "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday"
+            ],
+            "holiday_handling": "NONE" | "OPEN_ON_HOLIDAY" | "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
+          },
+
+          "exceptions": {
+            "closed_dates": ["YYYY-MM-DD"],
+            "open_dates": ["YYYY-MM-DD"],
+            "special_openings": [
+              {
+                "date": "YYYY-MM-DD"
+                      | "EVERY_MONDAY" | "EVERY_TUESDAY" | "EVERY_WEDNESDAY"
+                      | "EVERY_THURSDAY" | "EVERY_FRIDAY"
+                      | "EVERY_SATURDAY" | "EVERY_SUNDAY",
+                "open_time": "HH:mm",
+                "close_time": "HH:mm",
+                "last_entry_time": "HH:mm" | null,
+                "note": string | null
+              }
+            ]
+          },
+
+          "admission": {
+            "is_free": boolean,
+            "fees": [
+              {
+                "category":
+                  "adult"
+                  | "university_student"
+                  | "high_school_student"
+                  | "junior_high_student"
+                  | "elementary_student"
+                  | "preschool"
+                  | "senior"
+                  | "free"
+                  | "other",
+                "label": string,
+                "price_yen": number | null,
+                "note": string | null
+              }
+            ]
+          },
+
+          "reservation": {
+            "required": boolean,
+            "note": string | null
+          },
+
+          "url": string | null
+        }
+
+        --------------------------------
+        DETAILED INSTRUCTIONS
+        --------------------------------
+
+        ### period
+        - Extract the exhibition period exactly as written.
+        - Convert to start_date and end_date when possible.
+
+        ### regular_schedule
+        - Use this ONLY for the default opening rule.
+        - If multiple default rules exist (e.g. Fridays only), use special_openings instead.
+        - If no closed weekday is specified, return an empty array.
+        - If holiday handling is not clearly stated, set holiday_handling to "NONE".
+
+        ### exceptions
+        - Use ONLY when explicitly stated.
+        - closed_dates: specific dates when the exhibition is closed.
+        - open_dates: specific dates when the exhibition is open despite normal closure.
+        - special_openings: only when opening hours differ from the regular schedule.
+
+        ### admission (IMPORTANT)
+        - Extract ONLY admission fee information.
+        - Set is_free to true ONLY if the exhibition is explicitly stated as free.
+        - For each fee:
+          - category must be chosen from the predefined enum.
+          - label must preserve the original wording on the poster
+            (e.g. "中高生", "小学生以下", "高校生・大学生").
+        - If a category covers multiple age groups (e.g. "中高生"):
+          - Choose the closest representative category
+            (e.g. "high_school_student").
+        - If the fee is free, set price_yen to null and explain briefly in note.
+        - Do NOT merge or split categories beyond what is written.
+        - Do NOT interpret user attributes.
+
+        ### reservation
+        - Set required to true ONLY if advance reservation is explicitly required.
+        - If reservation is partial or conditional, set required to true and explain briefly in note.
+
+        --------------------------------
+        IMPORTANT PROHIBITIONS
+        --------------------------------
+        - Do NOT infer missing prices or age rules.
+        - Do NOT invent categories.
+        - Do NOT normalize categories into broader concepts (e.g. do NOT convert to "student").
+        - Do NOT output explanations.
+
+        If information cannot be confidently extracted, use null or empty arrays.
+
         """
         let response = try await model.generateContent(prompt, image)
         let text = response.text ?? ""
@@ -270,6 +442,7 @@ struct TextRecognitionService {
         let venueCandidates = [payload.venue?.trimmed].compactMap { $0 }.filter { !$0.isEmpty }
         let venuePOI = payload.venuePoi?.trimmed
         let urlCandidates = [payload.url?.trimmed].compactMap { $0 }.filter { !$0.isEmpty }
+        let schedule = buildSchedule(from: payload)
 
         var dateCandidates: [(Date, Date)] = []
         if let start = payload.startDate.flatMap(parseISODate),
@@ -298,9 +471,55 @@ struct TextRecognitionService {
             titleCandidates: titleCandidates,
             venueCandidates: venueCandidates,
             venuePOI: venuePOI,
+            schedule: schedule,
             dateCandidates: dateCandidates,
             urlCandidates: urlCandidates
         )
+    }
+
+    // MARK: - Gemini (Extra Info)
+    static func extractExtraInfoWithAI(from image: UIImage) async -> (fees: [AdmissionFee], reservationRequired: Bool?)? {
+        let model = GenerativeModel(name: "gemini-2.5-flash-lite", apiKey: APIKey.default)
+        let prompt = """
+        You are extracting admission fee and reservation info from a Japanese exhibition poster image.
+
+        Respond ONLY in valid JSON with the following structure:
+
+        {
+          "admission": {
+            "fees": [
+              { "category": "adult|university_student|high_school_student|junior_high_student|elementary_student|preschool|senior|free|other", "label": "string", "price_yen": 0, "note": "string|null" }
+            ]
+          },
+          "reservation_required": true | false | null
+        }
+
+        Rules:
+        - Do not guess; use null if unknown.
+        - If the fee is free, set category to "free" and price_yen to null.
+        - price_yen is Int for paid categories.
+        - label must be a normalized short label (e.g. "一般", "大学生", "高校生", "中学生", "小学生", "未就学児", "シニア", "新成人", "その他").
+        - Put the original poster wording or any extra conditions into note.
+        - If the poster uses a combined label (e.g. "中高生"), keep label concise (e.g. "高校生") and put the full wording in note.
+        - For conditional or date-specific discounts, keep the condition in note.
+        """
+        do {
+            let response = try await model.generateContent(prompt, image)
+            let text = response.text ?? ""
+            guard let json = extractFirstJSON(from: text),
+                  let data = json.data(using: .utf8)
+            else {
+                return nil
+            }
+            let decoder = JSONDecoder()
+            let payload = try decoder.decode(GeminiExtraInfoResponse.self, from: data)
+            guard let fees = payload.admission?.fees else {
+                return nil
+            }
+            return (fees: fees, reservationRequired: payload.reservationRequired)
+        } catch {
+            return nil
+        }
     }
     
     // MARK: - URL 抽出ヘルパー
@@ -329,6 +548,85 @@ struct TextRecognitionService {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    private static func buildSchedule(from payload: GeminiFlyerResponse) -> ScheduleExtraction? {
+        guard let regular = payload.regularSchedule else { return nil }
+        let openTime = regular.openTime?.trimmed
+        let closeTime = regular.closeTime?.trimmed
+        let lastEntryTime = regular.lastEntryTime?.trimmed
+        let closedWeekdays = (regular.closedWeekdays ?? [])
+            .compactMap { Weekday(rawValue: $0.lowercased()) }
+        let holidayHandling = parseHolidayHandling(regular.holidayHandling) ?? .none
+
+        let closedDates = (payload.exceptions?.closedDates ?? [])
+            .compactMap { parseISODate($0) }
+        let openDates = (payload.exceptions?.openDates ?? [])
+            .compactMap { parseISODate($0) }
+        let specialOpenings = (payload.exceptions?.specialOpenings ?? [])
+            .compactMap { entry -> SpecialOpening? in
+                guard let dateStr = entry.date?.trimmed, !dateStr.isEmpty else { return nil }
+                if let weekday = parseWeekdayRule(dateStr) {
+                    return SpecialOpening(
+                        rule: .weekday(weekday),
+                        openTime: entry.openTime ?? "",
+                        closeTime: entry.closeTime ?? "",
+                        lastEntryTime: entry.lastEntryTime,
+                        note: entry.note
+                    )
+                }
+                guard let date = parseISODate(dateStr) else { return nil }
+                return SpecialOpening(
+                    rule: .date(date),
+                    openTime: entry.openTime ?? "",
+                    closeTime: entry.closeTime ?? "",
+                    lastEntryTime: entry.lastEntryTime,
+                    note: entry.note
+                )
+            }
+
+        if openTime == nil,
+           closeTime == nil,
+           lastEntryTime == nil,
+           closedWeekdays.isEmpty,
+           holidayHandling == nil,
+           closedDates.isEmpty,
+           openDates.isEmpty,
+           specialOpenings.isEmpty {
+            return nil
+        }
+
+        return ScheduleExtraction(
+            openTime: openTime,
+            closeTime: closeTime,
+            lastEntryTime: lastEntryTime,
+            closedWeekdays: closedWeekdays,
+            holidayHandling: holidayHandling,
+            closedDates: closedDates,
+            openDates: openDates,
+            specialOpenings: specialOpenings
+        )
+    }
+
+    private static func parseHolidayHandling(_ value: String?) -> HolidayHandling? {
+        guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              !raw.isEmpty
+        else { return nil }
+        switch raw {
+        case "NONE": return .none
+        case "OPEN_ON_HOLIDAY": return .openOnHoliday
+        case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY": return .openOnHolidayCloseNextWeekday
+        default: return nil
+        }
+    }
+
+    private static func parseWeekdayRule(_ value: String) -> Weekday? {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if normalized.hasPrefix("EVERY_") {
+            let raw = normalized.replacingOccurrences(of: "EVERY_", with: "")
+            return Weekday(rawValue: raw.lowercased())
+        }
+        return nil
     }
     
     // MARK: - 共通 OCR

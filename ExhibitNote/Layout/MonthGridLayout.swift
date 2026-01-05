@@ -120,6 +120,7 @@ final class MonthGridLayout: UICollectionViewLayout {
                     } else {
                         attr.color = UIColor(red: 0.86, green: 0.92, blue: 1.0, alpha: 1.0)
                     }
+                    attr.isClosed = span.isClosed
                     pillAttributes.append(attr)
                 }
                 

@@ -32,6 +32,7 @@ struct DayExhibitionsListView: View {
                                 ExhibitionDetailView(exhibition: ex) // ← モーダル内でプッシュ
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
+                                    scheduleTag(for: ex)
                                     Text(ex.title).font(.headline)
                                     Text("\(dfRange.string(from: ex.startDate)) 〜 \(dfRange.string(from: ex.endDate))")
                                         .font(.footnote).foregroundStyle(.secondary)
@@ -49,6 +50,45 @@ struct DayExhibitionsListView: View {
             }
             .navigationTitle(dfHeader.string(from: date))
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+    
+    @ViewBuilder
+    private func scheduleTag(for exhibition: Exhibition) -> some View {
+        let status = ExhibitionScheduleUtils.openingStatus(on: date, exhibition: exhibition)
+        switch status {
+        case .closed:
+            Text("休館日")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
+        case let .open(openTime, closeTime, lastEntryTime):
+            if openTime == "未設定" || closeTime == "未設定" {
+                Text("開館時間未設定")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
+            } else if let last = lastEntryTime, !last.isEmpty {
+                Text("\(openTime)–\(closeTime) / 最終入場 \(last)")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background((exhibition.swiftUIColor ?? .blue).opacity(0.85),
+                                in: RoundedRectangle(cornerRadius: 4))
+            } else {
+                Text("\(openTime)–\(closeTime)")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background((exhibition.swiftUIColor ?? .blue).opacity(0.85),
+                                in: RoundedRectangle(cornerRadius: 4))
+            }
         }
     }
 }

@@ -13,6 +13,7 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     private let cal = Calendar.current
     private var exhibitions: [Exhibition] = []
     private var currentVC: MonthCalendarViewController!
+    private var lastSignature: [String] = []
     
     private lazy var monthTitleFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -38,6 +39,15 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        lastSignature = exhibitions.map {
+            [
+                String(describing: $0.persistentModelID),
+                String($0.startDate.timeIntervalSince1970),
+                String($0.endDate.timeIntervalSince1970),
+                $0.title,
+                $0.venue
+            ].joined(separator: "|")
+        }
         setViewControllers([currentVC], direction: .forward, animated: false)
         // 初期表示時にタイトル通知
         postMonthTitle(for: currentVC.currentMonthAnchor)
@@ -89,6 +99,17 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     
     // MARK: - 外部からの更新
     func update(exhibitions: [Exhibition]) {
+        let signature = exhibitions.map {
+            [
+                String(describing: $0.persistentModelID),
+                String($0.startDate.timeIntervalSince1970),
+                String($0.endDate.timeIntervalSince1970),
+                $0.title,
+                $0.venue
+            ].joined(separator: "|")
+        }
+        if signature == lastSignature { return }
+        lastSignature = signature
         self.exhibitions = exhibitions
         if let vc = viewControllers?.first as? MonthCalendarViewController {
             vc.configure(with: exhibitions)

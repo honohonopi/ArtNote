@@ -209,12 +209,20 @@ struct HomeNearbySectionView: View {
 struct HomeSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("useAIExtraction") private var useAIExtraction = false
+    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserAdmissionCategory.adult.rawValue
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("画像解析") {
                     Toggle("AIを使って精度を上げる", isOn: $useAIExtraction)
+                }
+                Section("ユーザー種別") {
+                    Picker("種別", selection: $userAdmissionCategoryRaw) {
+                        ForEach(UserAdmissionCategory.allCases) { category in
+                            Text(category.displayName).tag(category.rawValue)
+                        }
+                    }
                 }
             }
             .navigationTitle("設定")

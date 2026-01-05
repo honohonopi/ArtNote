@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 90;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -41,14 +41,12 @@
 /* Begin PBXFrameworksBuildPhase section */
 		557059CE2E8FAA6500FB2905 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */,
 				553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */,
 				553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */,
 				55EBEB542F0A3A0F00D5EE2E /* GoogleGenerativeAI in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -81,8 +79,6 @@
 				557059CF2E8FAA6500FB2905 /* Resources */,
 			);
 			buildRules = (
-			);
-			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				557059D32E8FAA6500FB2905 /* ExhibitNote */,
@@ -127,7 +123,7 @@
 				553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */,
 				55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */,
 			);
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 90;
 			productRefGroup = 557059D22E8FAA6500FB2905 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -140,25 +136,21 @@
 /* Begin PBXResourcesBuildPhase section */
 		557059CF2E8FAA6500FB2905 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		557059CD2E8FAA6500FB2905 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		557059DD2E8FAA6700FB2905 /* Debug */ = {
+		557059DD2E8FAA6700FB2905 /* Debug configuration for PBXProject "ExhibitNote" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -221,7 +213,7 @@
 			};
 			name = Debug;
 		};
-		557059DE2E8FAA6700FB2905 /* Release */ = {
+		557059DE2E8FAA6700FB2905 /* Release configuration for PBXProject "ExhibitNote" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -277,7 +269,7 @@
 			};
 			name = Release;
 		};
-		557059E02E8FAA6700FB2905 /* Debug */ = {
+		557059E02E8FAA6700FB2905 /* Debug configuration for PBXNativeTarget "ExhibitNote" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -298,7 +290,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -312,7 +304,7 @@
 			};
 			name = Debug;
 		};
-		557059E12E8FAA6700FB2905 /* Release */ = {
+		557059E12E8FAA6700FB2905 /* Release configuration for PBXNativeTarget "ExhibitNote" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -333,7 +325,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -353,19 +345,17 @@
 		557059CC2E8FAA6500FB2905 /* Build configuration list for PBXProject "ExhibitNote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				557059DD2E8FAA6700FB2905 /* Debug */,
-				557059DE2E8FAA6700FB2905 /* Release */,
+				557059DD2E8FAA6700FB2905 /* Debug configuration for PBXProject "ExhibitNote" */,
+				557059DE2E8FAA6700FB2905 /* Release configuration for PBXProject "ExhibitNote" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		557059DF2E8FAA6700FB2905 /* Build configuration list for PBXNativeTarget "ExhibitNote" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				557059E02E8FAA6700FB2905 /* Debug */,
-				557059E12E8FAA6700FB2905 /* Release */,
+				557059E02E8FAA6700FB2905 /* Debug configuration for PBXNativeTarget "ExhibitNote" */,
+				557059E12E8FAA6700FB2905 /* Release configuration for PBXNativeTarget "ExhibitNote" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

@@ -1,0 +1,166 @@
+//
+//  ExhibitionScheduleUtils.swift
+//  ArtNote
+//
+//  Created by Honoka Nishiyama on 2026/01/05.
+//
+
+import Foundation
+
+enum OpeningStatus {
+    case open(openTime: String, closeTime: String, lastEntryTime: String?)
+    case closed
+}
+
+enum ExhibitionScheduleUtils {
+    private static let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo")!
+    private static let jpLocale = Locale(identifier: "ja_JP")
+    
+    static var tokyoCalendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = tokyoTimeZone
+        cal.locale = jpLocale
+        return cal
+    }
+    
+    /// 日本の祝日判定（振替休日を含む）
+    static func isJapaneseHoliday(_ date: Date) -> Bool {
+        let cal = tokyoCalendar
+        // NOTE: Calendar.Component.isHoliday が未提供の SDK では常に false になります。
+        // iOS 18 SDK で利用可能になったら .isHoliday を含めて判定してください。
+        _ = cal
+        _ = date
+        return false
+    }
+    
+    /// 指定日から次の平日を返す（週末・祝日をスキップ）
+    static func nextBusinessDay(after date: Date) -> Date {
+        let cal = tokyoCalendar
+        var cursor = cal.startOfDay(for: date)
+        while true {
+            guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { return cursor }
+            cursor = next
+            if isBusinessDay(cursor) { return cursor }
+        }
+    }
+    
+    static func openingStatus(on date: Date, exhibition: Exhibition) -> OpeningStatus {
+        let cal = tokyoCalendar
+        let day = cal.startOfDay(for: date)
+        
+        if day < cal.startOfDay(for: exhibition.startDate) ||
+            day > cal.startOfDay(for: exhibition.endDate) {
+            return .closed
+        }
+        
+        if let special = matchSpecialOpening(exhibition.scheduleSpecialOpenings, day, cal) {
+            return .open(openTime: special.openTime,
+                         closeTime: special.closeTime,
+                         lastEntryTime: special.lastEntryTime)
+        }
+        
+        if exhibition.scheduleClosedDates.contains(where: { isSameDay($0, day) }) {
+            return .closed
+        }
+        
+        if exhibition.scheduleOpenDates.contains(where: { isSameDay($0, day) }) {
+            return .open(openTime: exhibition.scheduleOpenTime ?? "未設定",
+                         closeTime: exhibition.scheduleCloseTime ?? "未設定",
+                         lastEntryTime: exhibition.scheduleLastEntryTime)
+        }
+        
+        let holidayHandling = holidayHandling(from: exhibition.scheduleHolidayHandling)
+        let isHoliday = isJapaneseHoliday(day)
+        if isHoliday {
+            switch holidayHandling ?? .none {
+            case .none:
+                break
+            case .openOnHoliday, .openOnHolidayCloseNextWeekday:
+                return .open(openTime: exhibition.scheduleOpenTime ?? "未設定",
+                             closeTime: exhibition.scheduleCloseTime ?? "未設定",
+                             lastEntryTime: exhibition.scheduleLastEntryTime)
+            }
+        }
+        
+        if holidayHandling == .openOnHolidayCloseNextWeekday,
+           isHolidayFollowupClosedDay(day) {
+            return .closed
+        }
+        
+        let weekday = cal.component(.weekday, from: day)
+        let closedWeekdays = exhibition.scheduleClosedWeekdays
+            .compactMap { Weekday(rawValue: $0.lowercased()) }
+        if closedWeekdays.contains(where: { $0.calendarValue == weekday }) {
+            return .closed
+        }
+        
+        return .open(openTime: exhibition.scheduleOpenTime ?? "未設定",
+                     closeTime: exhibition.scheduleCloseTime ?? "未設定",
+                     lastEntryTime: exhibition.scheduleLastEntryTime)
+    }
+    
+    private static func isSameDay(_ lhs: Date, _ rhs: Date) -> Bool {
+        let cal = tokyoCalendar
+        return cal.isDate(lhs, inSameDayAs: rhs)
+    }
+    
+    private static func isBusinessDay(_ date: Date) -> Bool {
+        let cal = tokyoCalendar
+        let weekday = cal.component(.weekday, from: date)
+        let isWeekend = weekday == 1 || weekday == 7
+        return !isWeekend && !isJapaneseHoliday(date)
+    }
+    
+    // 祝日の翌平日（振替休館）かどうか
+    private static func isHolidayFollowupClosedDay(_ date: Date) -> Bool {
+        let cal = tokyoCalendar
+        var cursor = cal.date(byAdding: .day, value: -1, to: date)!
+        var foundHoliday = false
+        while true {
+            if isJapaneseHoliday(cursor) {
+                foundHoliday = true
+            }
+            let weekday = cal.component(.weekday, from: cursor)
+            let isWeekend = weekday == 1 || weekday == 7
+            if !isWeekend && !isJapaneseHoliday(cursor) {
+                break
+            }
+            guard let prev = cal.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = prev
+        }
+        return foundHoliday
+    }
+    
+    private static func holidayHandling(from rawValue: String?) -> HolidayHandling? {
+        guard let raw = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              !raw.isEmpty
+        else { return nil }
+        switch raw {
+        case "NONE": return .none
+        case "OPEN_ON_HOLIDAY": return .openOnHoliday
+        case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY": return .openOnHolidayCloseNextWeekday
+        default: return nil
+        }
+    }
+    
+    private static func matchSpecialOpening(
+        _ openings: [Exhibition.SpecialOpeningRecord],
+        _ day: Date,
+        _ cal: Calendar
+    ) -> Exhibition.SpecialOpeningRecord? {
+        if let exact = openings.first(where: { record in
+            guard record.ruleType == "date", let date = record.date else { return false }
+            return cal.isDate(date, inSameDayAs: day)
+        }) {
+            return exact
+        }
+        let weekday = cal.component(.weekday, from: day)
+        return openings.first(where: { record in
+            guard record.ruleType == "weekday",
+                  let raw = record.weekday?.lowercased(),
+                  let w = Weekday(rawValue: raw)
+            else { return false }
+            return w.calendarValue == weekday
+        })
+    }
+}

@@ -71,7 +71,7 @@ struct ExhibitionsCalendarView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $vm.showDaySheet) {
                 if let date = vm.selectedDate {
-                    DayExhibitionsListView(
+                    let content = DayExhibitionsListView(
                         date: date,
                         exhibitions: vm.exhibitions(on: date, from: exhibitions),
                         onSelect: { ex in
@@ -80,6 +80,11 @@ struct ExhibitionsCalendarView: View {
                     )
                     .presentationDetents([.medium, .large], selection: $daySheetDetent)
                     .presentationDragIndicator(.visible)
+                    if #available(iOS 16.4, *) {
+                        content.presentationBackground(Color(uiColor: .systemBackground))
+                    } else {
+                        content
+                    }
                 }
             }
             .fullScreenCover(item: $vm.selectedExhibitionForFullScreen) { ex in

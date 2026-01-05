@@ -145,9 +145,8 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             let spans = CalendarEventSpanBuilder.splitByWeek(start: s, end: e, cal: cal)
             for w in spans {
                 guard let section = firstWeekStarts.firstIndex(of: w.weekStart) else { continue }
-                let startCol = CalendarEventSpanBuilder.weekdayColumn(for: w.start, cal: cal)
-                let endCol   = CalendarEventSpanBuilder.weekdayColumn(for: w.end,   cal: cal)
-                eventSpansBySection[section].append(EventSpan(startColumn: startCol, endColumn: endCol, row: 0, title: ex.title, exhibitionID: ex.persistentModelID))
+                let spansForWeek = buildEventSpansForWeek(exhibition: ex, weekSpan: w)
+                eventSpansBySection[section].append(contentsOf: spansForWeek)
             }
         }
         
@@ -233,7 +232,12 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
                 let conflict = rows[r].contains { overlaps($0, range) }
                 if !conflict {
                     rows[r].append(range)
-                    result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title, exhibitionID: s.exhibitionID))
+                    result.append(EventSpan(startColumn: s.startColumn,
+                                            endColumn: s.endColumn,
+                                            row: r,
+                                            title: s.title,
+                                            exhibitionID: s.exhibitionID,
+                                            isClosed: s.isClosed))
                     placed = true
                     break
                 }
@@ -242,10 +246,65 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
             if !placed {
                 rows.append([range])
                 let r = rows.count - 1
-                result.append(EventSpan(startColumn: s.startColumn, endColumn: s.endColumn, row: r, title: s.title, exhibitionID: s.exhibitionID))
+                result.append(EventSpan(startColumn: s.startColumn,
+                                        endColumn: s.endColumn,
+                                        row: r,
+                                        title: s.title,
+                                        exhibitionID: s.exhibitionID,
+                                        isClosed: s.isClosed))
             }
         }
         return (result, max(1, rows.count))
+    }
+
+    private func buildEventSpansForWeek(exhibition: Exhibition, weekSpan: WeekSpan) -> [EventSpan] {
+        var spans: [EventSpan] = []
+        var cursor = cal.startOfDay(for: weekSpan.start)
+        let end = cal.startOfDay(for: weekSpan.end)
+        
+        var currentStart: Date? = nil
+        var currentClosed: Bool? = nil
+        
+        while cursor <= end {
+            let status = ExhibitionScheduleUtils.openingStatus(on: cursor, exhibition: exhibition)
+            let isClosed: Bool
+            if case .closed = status {
+                isClosed = true
+            } else {
+                isClosed = false
+            }
+            
+            if currentClosed == nil {
+                currentClosed = isClosed
+                currentStart = cursor
+            } else if currentClosed != isClosed {
+                if let start = currentStart {
+                    spans.append(makeSpan(exhibition: exhibition,
+                                          start: start,
+                                          end: cal.date(byAdding: .day, value: -1, to: cursor) ?? start,
+                                          isClosed: currentClosed ?? false))
+                }
+                currentClosed = isClosed
+                currentStart = cursor
+            }
+            guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        if let start = currentStart, let closed = currentClosed {
+            spans.append(makeSpan(exhibition: exhibition, start: start, end: end, isClosed: closed))
+        }
+        return spans
+    }
+    
+    private func makeSpan(exhibition: Exhibition, start: Date, end: Date, isClosed: Bool) -> EventSpan {
+        let startCol = CalendarEventSpanBuilder.weekdayColumn(for: start, cal: cal)
+        let endCol = CalendarEventSpanBuilder.weekdayColumn(for: end, cal: cal)
+        return EventSpan(startColumn: startCol,
+                         endColumn: endCol,
+                         row: 0,
+                         title: exhibition.title,
+                         exhibitionID: exhibition.persistentModelID,
+                         isClosed: isClosed)
     }
     
     @objc private func handleSwipe(_ gr: UISwipeGestureRecognizer) {

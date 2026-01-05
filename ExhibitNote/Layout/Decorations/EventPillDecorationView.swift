@@ -11,10 +11,12 @@ import UIKit
 final class EventPillLayoutAttributes: UICollectionViewLayoutAttributes {
     var title: String = ""
     var color: UIColor? = nil
+    var isClosed: Bool = false
     override func copy(with zone: NSZone? = nil) -> Any {
         let c = super.copy(with: zone) as! EventPillLayoutAttributes
         c.title = title
         c.color = color
+        c.isClosed = isClosed
         return c
     }
 }
@@ -44,7 +46,10 @@ final class EventPillDecorationView: UICollectionReusableView {
         super.apply(layoutAttributes)
         if let a = layoutAttributes as? EventPillLayoutAttributes {
             label.text = a.title
-            if let c = a.color {
+            if a.isClosed {
+                backgroundColor = UIColor.systemGray5
+                label.textColor = .secondaryLabel
+            } else if let c = a.color {
                 backgroundColor = c
                 let isDark = (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) < 0.5
                 label.textColor = isDark ? .white : .label

@@ -16,6 +16,7 @@ struct EventSpan {
     let row: Int          // バンドの縦段（重なり解消で増える）
     let title: String
     let exhibitionID: PersistentIdentifier
+    let isClosed: Bool
 }
 
 /// 会期を週ごとに分割したサブ区間

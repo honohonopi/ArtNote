@@ -32,6 +32,8 @@ struct ExhibitionDetailView: View {
     
     @State private var showMapChoice = false
     @State private var ocrPickedImage: UIImage?
+    @State private var showAdmissionDetails = false
+    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserAdmissionCategory.adult.rawValue
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -173,6 +175,52 @@ struct ExhibitionDetailView: View {
             } header: {
                 HStack {
                     Text("メモ")
+                }
+            }
+            
+            if !exhibition.admissionFees.isEmpty || exhibition.reservationRequired == true {
+                Section {
+                    let userCategory = UserAdmissionCategory(rawValue: userAdmissionCategoryRaw) ?? .adult
+                    let resolved = resolvedFee(for: userCategory, fees: exhibition.admissionFees)
+                    DisclosureGroup(isExpanded: $showAdmissionDetails) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(exhibition.admissionFees) { fee in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(fee.label)
+                                        Spacer()
+                                        Text(fee.category == .free || fee.priceYen == nil ? "無料" : "\(fee.priceYen ?? 0)円")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                       !note.isEmpty {
+                                        Text(note)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    } label: {
+                        HStack {
+                            Text("入館料")
+                            Spacer()
+                            if let fee = resolved {
+                                Text(fee.category == .free || fee.priceYen == nil ? "無料" : "\(fee.priceYen ?? 0)円")
+                                    .foregroundStyle(.secondary)
+                            }
+                            if exhibition.reservationRequired == true {
+                                Text("事前予約制")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
+                            }
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: showAdmissionDetails)
                 }
             }
         }
