@@ -329,7 +329,7 @@ struct ExhibitionFormView: View {
     private func holidayHandlingText(_ value: HolidayHandling) -> String {
         switch value {
         case .none:
-            return "祝日規定なし"
+            return "規定なし"
         case .openOnHoliday:
             return "祝日は開館"
         case .openOnHolidayCloseNextWeekday:
@@ -372,7 +372,7 @@ struct ExhibitionFormView: View {
             case .date(let date):
                 base = "\(date.ymdString) \(entry.openTime)–\(entry.closeTime)"
             case .weekday(let weekday):
-                base = "\(weekdayLabel(weekday)) \(entry.openTime)–\(entry.closeTime)"
+                base = "\(weeklyLabel(weekday)) \(entry.openTime)–\(entry.closeTime)"
             }
             var text = base
             if let last = entry.lastEntryTime, !last.isEmpty {
@@ -386,17 +386,311 @@ struct ExhibitionFormView: View {
         .joined(separator: " / ")
     }
 
-    private func admissionPriceText(_ fee: AdmissionFeeRule) -> String {
+    private func admissionPriceText(_ fee: AdmissionFeeRule) -> String? {
         if fee.isFreeLike {
             return "無料"
         }
         if let price = fee.priceYen {
             return "\(price)円"
         }
-        return "未取得"
+        return nil
+    }
+
+    private var displayAdmissionFees: [AdmissionFeeRule] {
+        admissionFees.filter { fee in
+            fee.priceYen != nil ||
+            (fee.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+        }
+    }
+
+    private var scheduleList: some View {
+        Group {
+            HStack {
+                Text("開館時間")
+                Spacer()
+                HStack(spacing: 4) {
+                    DatePicker("", selection: timeBindingOptional($scheduleOpenTime, defaultTime: "10:00"), displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                    Text("〜")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 16)
+                    DatePicker("", selection: timeBindingOptional($scheduleCloseTime, defaultTime: "17:00"), displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+            }
+            HStack {
+                Text("最終入場")
+                Spacer()
+                if scheduleLastEntryTime != nil {
+                    HStack(spacing: 8) {
+                        DatePicker("", selection: timeBindingOptional($scheduleLastEntryTime, defaultTime: scheduleCloseTime ?? "17:00"), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                        Button {
+                            scheduleLastEntryTime = nil
+                        } label: {
+                            Image(systemName: "minus.circle")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    HStack(spacing: 6) {
+                        Text("未設定")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            scheduleLastEntryTime = scheduleCloseTime ?? "17:00"
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack {
+                Text("休館曜日")
+                Spacer()
+                HStack(spacing: 6) {
+                    ForEach(Weekday.allCases, id: \.self) { day in
+                        let selected = scheduleClosedWeekdays.contains(day)
+                        Button(weekdayShortLabel(day)) {
+                            toggleWeekday(day)
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(selected ? Color.blue.opacity(0.2) : Color(.systemGray5))
+                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            HStack {
+                Text("祝日対応")
+                Spacer()
+                Menu {
+                    Button("祝日規定なし") { scheduleHolidayHandling = .none }
+                    Button("祝日は開館") { scheduleHolidayHandling = .openOnHoliday }
+                    Button("祝日開館、翌平日休館") { scheduleHolidayHandling = .openOnHolidayCloseNextWeekday }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(holidayHandlingText(scheduleHolidayHandling ?? .none))
+                            .foregroundStyle(.secondary)
+                        Image(systemName: "chevron.down")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+            }
+            HStack {
+                Text("特別休館日")
+                Spacer()
+                Button {
+                    scheduleClosedDates.append(Date())
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(scheduleClosedDates.indices, id: \.self) { idx in
+                HStack {
+                    Spacer()
+                    DatePicker("", selection: Binding(
+                        get: { scheduleClosedDates[idx] },
+                        set: { scheduleClosedDates[idx] = $0 }
+                    ), displayedComponents: .date)
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                    .environment(\.calendar, Calendar(identifier: .gregorian))
+                }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        scheduleClosedDates.remove(at: idx)
+                    } label: {
+                        Label("削除", systemImage: "trash")
+                    }
+                }
+            }
+            HStack {
+                Text("特別開館日")
+                Spacer()
+                Button {
+                    scheduleOpenDates.append(Date())
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(scheduleOpenDates.indices, id: \.self) { idx in
+                HStack {
+                    Spacer()
+                    DatePicker("", selection: Binding(
+                        get: { scheduleOpenDates[idx] },
+                        set: { scheduleOpenDates[idx] = $0 }
+                    ), displayedComponents: .date)
+                    .labelsHidden()
+                    .datePickerStyle(.compact)
+                    .environment(\.locale, Locale(identifier: "ja_JP"))
+                    .environment(\.calendar, Calendar(identifier: .gregorian))
+                }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        scheduleOpenDates.remove(at: idx)
+                    } label: {
+                        Label("削除", systemImage: "trash")
+                    }
+                }
+            }
+            HStack {
+                Text("特別開館時間")
+                Spacer()
+                Button {
+                    let open = scheduleOpenTime ?? "10:00"
+                    let close = scheduleCloseTime ?? "17:00"
+                    scheduleSpecialOpenings.append(
+                        SpecialOpening(rule: .date(Date()),
+                                       openTime: open,
+                                       closeTime: close,
+                                       lastEntryTime: scheduleLastEntryTime,
+                                       note: nil)
+                    )
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(scheduleSpecialOpenings.indices, id: \.self) { idx in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(specialOpeningLabel(scheduleSpecialOpenings[idx]))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            DatePicker("", selection: timeBinding(
+                                Binding(
+                                    get: { scheduleSpecialOpenings[idx].openTime },
+                                    set: { scheduleSpecialOpenings[idx].openTime = $0 }
+                                ),
+                                defaultTime: "10:00"
+                            ), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                            Text("〜")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 12)
+                            DatePicker("", selection: timeBinding(
+                                Binding(
+                                    get: { scheduleSpecialOpenings[idx].closeTime },
+                                    set: { scheduleSpecialOpenings[idx].closeTime = $0 }
+                                ),
+                                defaultTime: "17:00"
+                            ), displayedComponents: .hourAndMinute)
+                            .labelsHidden()
+                        }
+                    }
+                    if let last = scheduleSpecialOpenings[idx].lastEntryTime, !last.isEmpty {
+                        Text("最終入場 \(last)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .contextMenu {
+                    Button(role: .destructive) {
+                        scheduleSpecialOpenings.remove(at: idx)
+                    } label: {
+                        Label("削除", systemImage: "trash")
+                    }
+                }
+            }
+        }
+    }
+
+    private func specialOpeningLabel(_ opening: SpecialOpening) -> String {
+        switch opening.rule {
+        case .date(let date):
+            return date.ymdString
+        case .weekday(let weekday):
+            return weekdayLabel(weekday)
+        }
     }
 
     private func weekdayLabel(_ weekday: Weekday) -> String {
+        switch weekday {
+        case .monday: return "月曜日"
+        case .tuesday: return "火曜日"
+        case .wednesday: return "水曜日"
+        case .thursday: return "木曜日"
+        case .friday: return "金曜日"
+        case .saturday: return "土曜日"
+        case .sunday: return "日曜日"
+        }
+    }
+
+    private func weekdayShortLabel(_ weekday: Weekday) -> String {
+        switch weekday {
+        case .monday: return "月"
+        case .tuesday: return "火"
+        case .wednesday: return "水"
+        case .thursday: return "木"
+        case .friday: return "金"
+        case .saturday: return "土"
+        case .sunday: return "日"
+        }
+    }
+
+    private func toggleWeekday(_ weekday: Weekday) {
+        if let idx = scheduleClosedWeekdays.firstIndex(of: weekday) {
+            scheduleClosedWeekdays.remove(at: idx)
+        } else {
+            scheduleClosedWeekdays.append(weekday)
+            scheduleClosedWeekdays.sort { $0.calendarValue < $1.calendarValue }
+        }
+    }
+
+    private func timeBindingOptional(_ value: Binding<String?>, defaultTime: String) -> Binding<Date> {
+        Binding<Date>(
+            get: {
+                timeDate(from: value.wrappedValue) ?? timeDate(from: defaultTime) ?? Date()
+            },
+            set: { newDate in
+                value.wrappedValue = timeString(from: newDate)
+            }
+        )
+    }
+
+    private func timeBinding(_ value: Binding<String>, defaultTime: String) -> Binding<Date> {
+        Binding<Date>(
+            get: {
+                timeDate(from: value.wrappedValue) ?? timeDate(from: defaultTime) ?? Date()
+            },
+            set: { newDate in
+                value.wrappedValue = timeString(from: newDate)
+            }
+        )
+    }
+
+    private func timeDate(from text: String?) -> Date? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.date(from: text)
+    }
+
+    private func timeString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func weeklyLabel(_ weekday: Weekday) -> String {
         switch weekday {
         case .monday: return "毎週月曜"
         case .tuesday: return "毎週火曜"
@@ -515,18 +809,20 @@ struct ExhibitionFormView: View {
                 }
                 Section("チケット情報") {
                     DisclosureGroup(isExpanded: $showAdmissionFees) {
-                        if admissionFees.isEmpty {
+                        if displayAdmissionFees.isEmpty {
                             Text("未取得")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
-                            ForEach(admissionFees) { fee in
+                            ForEach(displayAdmissionFees) { fee in
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
                                         Text(fee.rawLabel)
                                         Spacer()
-                                        Text(admissionPriceText(fee))
-                                            .foregroundStyle(.secondary)
+                                        if let priceText = admissionPriceText(fee) {
+                                            Text(priceText)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                     if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
                                        !note.isEmpty {
@@ -573,7 +869,21 @@ struct ExhibitionFormView: View {
                     }
                 }
                 Section {
-                    Text("開館情報")
+                    DisclosureGroup {
+                        scheduleList
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar.badge.clock")
+                                .foregroundStyle(.secondary)
+                            Text("開館情報")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if isAIAnalyzing {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            }
+                        }
+                    }
                 }
                 Section("ポスターから自動入力") {
                     Menu {

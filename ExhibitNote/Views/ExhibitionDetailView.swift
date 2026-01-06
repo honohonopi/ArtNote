@@ -184,13 +184,27 @@ struct ExhibitionDetailView: View {
                     let resolved = exhibition.resolvedAdmissionFee(for: userCategory)
                     DisclosureGroup(isExpanded: $showAdmissionDetails) {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(exhibition.admissionFeeRules) { fee in
+                            let displayFees = exhibition.admissionFeeRules.filter { fee in
+                                fee.priceYen != nil ||
+                                (fee.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                            }
+                            if displayFees.isEmpty {
+                                Text("未取得")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(displayFees) { fee in
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
                                         Text(fee.rawLabel)
                                         Spacer()
-                                        Text(fee.isFreeLike ? "無料" : "\(fee.priceYen ?? 0)円")
-                                            .foregroundStyle(.secondary)
+                                        if fee.isFreeLike {
+                                            Text("無料")
+                                                .foregroundStyle(.secondary)
+                                        } else if let price = fee.priceYen {
+                                            Text("\(price)円")
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                     if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
                                        !note.isEmpty {
@@ -198,6 +212,7 @@ struct ExhibitionDetailView: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
+                                }
                                 }
                             }
                         }
@@ -207,8 +222,13 @@ struct ExhibitionDetailView: View {
                             Text("入館料")
                             Spacer()
                             if let fee = resolved {
-                                Text(fee.isFreeLike ? "無料" : "\(fee.priceYen ?? 0)円")
-                                    .foregroundStyle(.secondary)
+                                if fee.isFreeLike {
+                                    Text("無料")
+                                        .foregroundStyle(.secondary)
+                                } else if let price = fee.priceYen {
+                                    Text("\(price)円")
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             if exhibition.reservationRequired == true {
                                 Text("事前予約制")
