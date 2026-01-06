@@ -88,6 +88,12 @@ struct ExhibitionFormView: View {
     @State private var admissionFees: [AdmissionFeeRule] = []
     @State private var reservationRequired: Bool? = nil
     @State private var showAdmissionFees = false
+    @State private var showAdmissionFeeEditor = false
+    @State private var editingAdmissionFeeIndex: Int? = nil
+    @State private var draftAdmissionLabel: String = ""
+    @State private var draftAdmissionPriceText: String = ""
+    @State private var draftAdmissionNote: String = ""
+    @State private var draftAdmissionTargets: [UserTicketCategory] = []
     
     struct MapPickerPayload: Identifiable {
         let id = UUID()
@@ -456,6 +462,14 @@ struct ExhibitionFormView: View {
         }
     }
 
+    private var displayAdmissionFeeIndices: [Int] {
+        admissionFees.indices.filter { idx in
+            let fee = admissionFees[idx]
+            return fee.priceYen != nil ||
+                (fee.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+        }
+    }
+
     private var scheduleList: some View {
         Group {
             HStack {
@@ -653,11 +667,11 @@ struct ExhibitionFormView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Text(specialOpeningLabel(scheduleSpecialOpenings[idx]))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                         Spacer()
                         Text("\(scheduleSpecialOpenings[idx].openTime)〜\(scheduleSpecialOpenings[idx].closeTime)")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.primary)
                         Menu {
                             Button("編集") {
                                 editingSpecialOpeningIndex = idx
@@ -863,6 +877,53 @@ struct ExhibitionFormView: View {
         }
     }
 
+    private func prepareAdmissionFeeEditor(for fee: AdmissionFeeRule? = nil) {
+        if let fee {
+            draftAdmissionLabel = fee.rawLabel
+            if let price = fee.priceYen {
+                draftAdmissionPriceText = "\(price)"
+            } else {
+                draftAdmissionPriceText = ""
+            }
+            draftAdmissionNote = fee.note ?? ""
+            draftAdmissionTargets = fee.targets
+        } else {
+            draftAdmissionLabel = ""
+            draftAdmissionPriceText = ""
+            draftAdmissionNote = ""
+            draftAdmissionTargets = []
+        }
+    }
+
+    private func commitAdmissionFee() {
+        let label = draftAdmissionLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteText = draftAdmissionNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        let priceText = draftAdmissionPriceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let price = priceText.isEmpty ? nil : Int(priceText)
+        var newFee = AdmissionFeeRule(
+            rawLabel: label,
+            priceYen: price,
+            note: noteText.isEmpty ? nil : noteText,
+            targets: draftAdmissionTargets
+        )
+        if let index = editingAdmissionFeeIndex {
+            newFee.id = admissionFees[index].id
+            admissionFees[index] = newFee
+            editingAdmissionFeeIndex = nil
+        } else {
+            admissionFees.append(newFee)
+        }
+    }
+
+    private var canSaveAdmissionFee: Bool {
+        let label = draftAdmissionLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteText = draftAdmissionNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        let priceText = draftAdmissionPriceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasPrice = !priceText.isEmpty
+        let priceIsValid = priceText.isEmpty || Int(priceText) != nil
+        return !label.isEmpty && priceIsValid && (hasPrice || !noteText.isEmpty)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -970,27 +1031,49 @@ struct ExhibitionFormView: View {
                 }
                 Section("チケット情報") {
                     DisclosureGroup(isExpanded: $showAdmissionFees) {
-                        if displayAdmissionFees.isEmpty {
-                            Text("未取得")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(displayAdmissionFees) { fee in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text(fee.rawLabel)
-                                        Spacer()
-                                        if let priceText = admissionPriceText(fee) {
-                                            Text(priceText)
-                                                .foregroundStyle(.secondary)
+                        Button {
+                            editingAdmissionFeeIndex = nil
+                            prepareAdmissionFeeEditor()
+                            showAdmissionFeeEditor = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle")
+                                    .foregroundStyle(.blue)
+                                Text("入館料を追加")
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        ForEach(displayAdmissionFeeIndices, id: \.self) { idx in
+                            let fee = admissionFees[idx]
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(fee.rawLabel)
+                                    Spacer()
+                                    if let priceText = admissionPriceText(fee) {
+                                        Text(priceText)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    Menu {
+                                        Button("編集") {
+                                            editingAdmissionFeeIndex = idx
+                                            prepareAdmissionFeeEditor(for: fee)
+                                            showAdmissionFeeEditor = true
                                         }
+                                        Button("削除", role: .destructive) {
+                                            admissionFees.remove(at: idx)
+                                        }
+                                    } label: {
+                                        Image(systemName: "ellipsis.circle")
+                                            .foregroundStyle(.blue)
                                     }
-                                    if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !note.isEmpty {
-                                        Text(note)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                }
+                                if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                   !note.isEmpty {
+                                    Text(note)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -1316,6 +1399,39 @@ struct ExhibitionFormView: View {
                 }
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .environment(\.calendar, Calendar(identifier: .gregorian))
+            }
+            .sheet(isPresented: $showAdmissionFeeEditor) {
+                NavigationStack {
+                    Form {
+                        Section("区分") {
+                            TextField("例: 一般 / 高校生・大学生", text: $draftAdmissionLabel)
+                                .textInputAutocapitalization(.never)
+                        }
+                        Section("金額") {
+                            TextField("例: 1200（空欄可）", text: $draftAdmissionPriceText)
+                                .keyboardType(.numberPad)
+                        }
+                        Section("メモ") {
+                            TextField("任意", text: $draftAdmissionNote)
+                        }
+                    }
+                    .navigationTitle(editingAdmissionFeeIndex == nil ? "入館料を追加" : "入館料を編集")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("キャンセル") {
+                                editingAdmissionFeeIndex = nil
+                                showAdmissionFeeEditor = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(editingAdmissionFeeIndex == nil ? "追加" : "保存") {
+                                commitAdmissionFee()
+                                showAdmissionFeeEditor = false
+                            }
+                            .disabled(!canSaveAdmissionFee)
+                        }
+                    }
+                }
             }
             .sheet(item: $mapPickerPayload) { payload in
                 NavigationStack {
