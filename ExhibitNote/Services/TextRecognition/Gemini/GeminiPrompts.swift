@@ -130,7 +130,7 @@ enum GeminiPrompts {
     - Use this ONLY for the default opening rule.
     - If multiple default rules exist (e.g. Fridays only), use special_openings instead.
     - If no closed weekday is specified, return an empty array.
-    - If holiday handling is not clearly stated, set holiday_handling to "NONE".
+    - If holiday handling is not clearly stated, set holiday_handling to null.
 
     ### exceptions
     - Use ONLY when explicitly stated.

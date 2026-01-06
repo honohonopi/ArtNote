@@ -355,10 +355,11 @@ struct ExhibitionFormView: View {
         return labels.joined(separator: "・")
     }
     
-    private func holidayHandlingText(_ value: HolidayHandling) -> String {
+    private func holidayHandlingText(_ value: HolidayHandling?) -> String {
+        guard let value else { return "記載なし" }
         switch value {
         case .none:
-            return "規定なし"
+            return "祝日対応なし"
         case .openOnHoliday:
             return "祝日は開館"
         case .openOnHolidayCloseNextWeekday:
@@ -511,12 +512,13 @@ struct ExhibitionFormView: View {
                 Text("祝日対応")
                 Spacer()
                 Menu {
-                    Button("祝日規定なし") { scheduleHolidayHandling = .none }
+                    Button("記載なし") { scheduleHolidayHandling = nil }
+                    Button("祝日対応なし") { scheduleHolidayHandling = .none }
                     Button("祝日は開館") { scheduleHolidayHandling = .openOnHoliday }
                     Button("祝日開館、翌平日休館") { scheduleHolidayHandling = .openOnHolidayCloseNextWeekday }
                 } label: {
                     HStack(spacing: 6) {
-                        Text(holidayHandlingText(scheduleHolidayHandling ?? .none))
+                        Text(holidayHandlingText(scheduleHolidayHandling))
                             .foregroundStyle(.secondary)
                         Image(systemName: "chevron.down")
                             .foregroundStyle(.secondary)

@@ -422,7 +422,8 @@ struct ExhibitionEditView: View {
             }
 
             Picker("祝日対応", selection: holidayHandlingBinding()) {
-                Text("規定なし").tag("NONE")
+                Text("記載なし").tag("UNSPECIFIED")
+                Text("祝日対応なし").tag("NONE")
                 Text("祝日は開館").tag("OPEN_ON_HOLIDAY")
                 Text("祝日開館・翌平日休館").tag("OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY")
             }
@@ -594,9 +595,11 @@ struct ExhibitionEditView: View {
 
     private func holidayHandlingBinding() -> Binding<String> {
         Binding<String>(
-            get: { scheduleHolidayHandling.map { holidayHandlingRaw($0) } ?? "NONE" },
+            get: { scheduleHolidayHandling.map { holidayHandlingRaw($0) } ?? "UNSPECIFIED" },
             set: { raw in
                 switch raw {
+                case "UNSPECIFIED":
+                    scheduleHolidayHandling = nil
                 case "OPEN_ON_HOLIDAY":
                     scheduleHolidayHandling = .openOnHoliday
                 case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY":
