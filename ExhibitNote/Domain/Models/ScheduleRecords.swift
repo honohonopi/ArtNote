@@ -13,6 +13,7 @@ import Foundation
 enum SpecialOpeningRuleType: String, Codable {
     case date
     case weekday
+    case range
 }
 
 struct SpecialOpeningRecord: Codable, Identifiable, Equatable {
@@ -21,6 +22,9 @@ struct SpecialOpeningRecord: Codable, Identifiable, Equatable {
     var ruleType: SpecialOpeningRuleType
     /// ruleType == .date のときのみ使用（YYYY-MM-DD）
     var date: String?
+    /// ruleType == .range のときのみ使用（YYYY-MM-DD）
+    var startDate: String?
+    var endDate: String?
     /// ruleType == .weekday のときのみ使用
     var weekday: Weekday?
 
@@ -36,7 +40,7 @@ struct SpecialOpeningRecord: Codable, Identifiable, Equatable {
         lastEntryTime: String? = nil,
         note: String? = nil
     ) -> SpecialOpeningRecord {
-        .init(ruleType: .date, date: date, weekday: nil,
+        .init(ruleType: .date, date: date, startDate: nil, endDate: nil, weekday: nil,
               openTime: openTime, closeTime: closeTime,
               lastEntryTime: lastEntryTime, note: note)
     }
@@ -48,7 +52,20 @@ struct SpecialOpeningRecord: Codable, Identifiable, Equatable {
         lastEntryTime: String? = nil,
         note: String? = nil
     ) -> SpecialOpeningRecord {
-        .init(ruleType: .weekday, date: nil, weekday: weekday,
+        .init(ruleType: .weekday, date: nil, startDate: nil, endDate: nil, weekday: weekday,
+              openTime: openTime, closeTime: closeTime,
+              lastEntryTime: lastEntryTime, note: note)
+    }
+
+    static func forRange(
+        start: String,
+        end: String,
+        openTime: String,
+        closeTime: String,
+        lastEntryTime: String? = nil,
+        note: String? = nil
+    ) -> SpecialOpeningRecord {
+        .init(ruleType: .range, date: nil, startDate: start, endDate: end, weekday: nil,
               openTime: openTime, closeTime: closeTime,
               lastEntryTime: lastEntryTime, note: note)
     }
@@ -58,6 +75,7 @@ struct SpecialOpening: Equatable {
     enum Rule: Equatable {
         case date(Date)
         case weekday(Weekday)
+        case range(start: Date, end: Date)
     }
 
     var rule: Rule
@@ -97,6 +115,17 @@ extension SpecialOpeningRecord {
                                   closeTime: closeTime,
                                   lastEntryTime: lastEntryTime,
                                   note: note)
+        case .range:
+            guard let start = startDate,
+                  let end = endDate,
+                  let startDate = ScheduleDateFormat.formatter.date(from: start),
+                  let endDate = ScheduleDateFormat.formatter.date(from: end)
+            else { return nil }
+            return SpecialOpening(rule: .range(start: startDate, end: endDate),
+                                  openTime: openTime,
+                                  closeTime: closeTime,
+                                  lastEntryTime: lastEntryTime,
+                                  note: note)
         }
     }
 }
@@ -117,6 +146,15 @@ extension SpecialOpening {
                                closeTime: closeTime,
                                lastEntryTime: lastEntryTime,
                                note: note)
+        case .range(let start, let end):
+            let startText = ScheduleDateFormat.formatter.string(from: start)
+            let endText = ScheduleDateFormat.formatter.string(from: end)
+            return .forRange(start: startText,
+                             end: endText,
+                             openTime: openTime,
+                             closeTime: closeTime,
+                             lastEntryTime: lastEntryTime,
+                             note: note)
         }
     }
 }

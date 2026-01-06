@@ -74,6 +74,16 @@ struct ExhibitionFormView: View {
     @State private var scheduleClosedDates: [Date] = []
     @State private var scheduleOpenDates: [Date] = []
     @State private var scheduleSpecialOpenings: [SpecialOpening] = []
+    @State private var editingSpecialOpeningIndex: Int? = nil
+    @State private var showSpecialOpeningEditor = false
+    @State private var specialOpeningMode: SpecialOpeningInputMode = .date
+    @State private var draftSpecialOpeningDate = Date()
+    @State private var draftSpecialOpeningStartDate = Date()
+    @State private var draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    @State private var draftSpecialOpeningWeekdays: Set<Weekday> = []
+    @State private var draftSpecialOpeningOpenTime = "10:00"
+    @State private var draftSpecialOpeningCloseTime = "17:00"
+    @State private var draftSpecialOpeningLastEntryTime: String? = nil
 
     @State private var admissionFees: [AdmissionFeeRule] = []
     @State private var reservationRequired: Bool? = nil
@@ -82,7 +92,23 @@ struct ExhibitionFormView: View {
     struct MapPickerPayload: Identifiable {
         let id = UUID()
         let query: String
-}
+    }
+
+    private enum SpecialOpeningInputMode: String, CaseIterable, Identifiable {
+        case date
+        case weekday
+        case range
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .date: return "単日"
+            case .weekday: return "曜日"
+            case .range: return "期間"
+            }
+        }
+    }
 
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
@@ -358,9 +384,19 @@ struct ExhibitionFormView: View {
             switch (left.rule, right.rule) {
             case (.date(let l), .date(let r)):
                 return l < r
+            case (.date, .range):
+                return true
             case (.date, .weekday):
                 return true
+            case (.range, .date):
+                return false
+            case (.range(let lStart, _), .range(let rStart, _)):
+                return lStart < rStart
+            case (.range, .weekday):
+                return true
             case (.weekday, .date):
+                return false
+            case (.weekday, .range):
                 return false
             case (.weekday(let l), .weekday(let r)):
                 return l.rawValue < r.rawValue
@@ -373,6 +409,8 @@ struct ExhibitionFormView: View {
                 base = "\(date.ymdString) \(entry.openTime)–\(entry.closeTime)"
             case .weekday(let weekday):
                 base = "\(weeklyLabel(weekday)) \(entry.openTime)–\(entry.closeTime)"
+            case .range(let start, let end):
+                base = "\(start.ymdString)〜\(end.ymdString) \(entry.openTime)–\(entry.closeTime)"
             }
             var text = base
             if let last = entry.lastEntryTime, !last.isEmpty {
@@ -432,7 +470,6 @@ struct ExhibitionFormView: View {
                             Image(systemName: "minus.circle")
                                 .foregroundStyle(.red)
                         }
-                        .buttonStyle(.plain)
                     }
                 } else {
                     HStack(spacing: 6) {
@@ -506,13 +543,13 @@ struct ExhibitionFormView: View {
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .environment(\.calendar, Calendar(identifier: .gregorian))
-                }
-                .contextMenu {
-                    Button(role: .destructive) {
+                    Button {
                         scheduleClosedDates.remove(at: idx)
                     } label: {
-                        Label("削除", systemImage: "trash")
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.red)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             HStack {
@@ -537,28 +574,22 @@ struct ExhibitionFormView: View {
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .environment(\.calendar, Calendar(identifier: .gregorian))
-                }
-                .contextMenu {
-                    Button(role: .destructive) {
+                    Button {
                         scheduleOpenDates.remove(at: idx)
                     } label: {
-                        Label("削除", systemImage: "trash")
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.red)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             HStack {
                 Text("特別開館時間")
                 Spacer()
                 Button {
-                    let open = scheduleOpenTime ?? "10:00"
-                    let close = scheduleCloseTime ?? "17:00"
-                    scheduleSpecialOpenings.append(
-                        SpecialOpening(rule: .date(Date()),
-                                       openTime: open,
-                                       closeTime: close,
-                                       lastEntryTime: scheduleLastEntryTime,
-                                       note: nil)
-                    )
+                    editingSpecialOpeningIndex = nil
+                    prepareSpecialOpeningEditor()
+                    showSpecialOpeningEditor = true
                 } label: {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(.blue)
@@ -571,40 +602,27 @@ struct ExhibitionFormView: View {
                         Text(specialOpeningLabel(scheduleSpecialOpenings[idx]))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        HStack(spacing: 4) {
-                            DatePicker("", selection: timeBinding(
-                                Binding(
-                                    get: { scheduleSpecialOpenings[idx].openTime },
-                                    set: { scheduleSpecialOpenings[idx].openTime = $0 }
-                                ),
-                                defaultTime: "10:00"
-                            ), displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            Text("〜")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .frame(minWidth: 12)
-                            DatePicker("", selection: timeBinding(
-                                Binding(
-                                    get: { scheduleSpecialOpenings[idx].closeTime },
-                                    set: { scheduleSpecialOpenings[idx].closeTime = $0 }
-                                ),
-                                defaultTime: "17:00"
-                            ), displayedComponents: .hourAndMinute)
-                            .labelsHidden()
+                        Text("\(scheduleSpecialOpenings[idx].openTime)〜\(scheduleSpecialOpenings[idx].closeTime)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Menu {
+                            Button("編集") {
+                                editingSpecialOpeningIndex = idx
+                                prepareSpecialOpeningEditor(for: scheduleSpecialOpenings[idx])
+                                showSpecialOpeningEditor = true
+                            }
+                            Button("削除", role: .destructive) {
+                                scheduleSpecialOpenings.remove(at: idx)
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(.blue)
                         }
                     }
                     if let last = scheduleSpecialOpenings[idx].lastEntryTime, !last.isEmpty {
                         Text("最終入場 \(last)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                }
-                .contextMenu {
-                    Button(role: .destructive) {
-                        scheduleSpecialOpenings.remove(at: idx)
-                    } label: {
-                        Label("削除", systemImage: "trash")
                     }
                 }
             }
@@ -617,6 +635,8 @@ struct ExhibitionFormView: View {
             return date.ymdString
         case .weekday(let weekday):
             return weekdayLabel(weekday)
+        case .range(let start, let end):
+            return "\(start.ymdString)〜\(end.ymdString)"
         }
     }
 
@@ -699,6 +719,94 @@ struct ExhibitionFormView: View {
         case .friday: return "毎週金曜"
         case .saturday: return "毎週土曜"
         case .sunday: return "毎週日曜"
+        }
+    }
+
+    private func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
+        if let opening {
+            switch opening.rule {
+            case .date(let date):
+                specialOpeningMode = .date
+                draftSpecialOpeningDate = date
+                draftSpecialOpeningWeekdays = []
+            case .weekday(let weekday):
+                specialOpeningMode = .weekday
+                draftSpecialOpeningDate = Date()
+                draftSpecialOpeningWeekdays = [weekday]
+            case .range(let start, let end):
+                specialOpeningMode = .range
+                draftSpecialOpeningStartDate = start
+                draftSpecialOpeningEndDate = end
+                draftSpecialOpeningWeekdays = []
+            }
+            draftSpecialOpeningOpenTime = opening.openTime
+            draftSpecialOpeningCloseTime = opening.closeTime
+            draftSpecialOpeningLastEntryTime = opening.lastEntryTime
+        } else {
+            specialOpeningMode = .date
+            draftSpecialOpeningDate = Date()
+            draftSpecialOpeningStartDate = Date()
+            draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            draftSpecialOpeningWeekdays = []
+            draftSpecialOpeningOpenTime = scheduleOpenTime ?? "10:00"
+            draftSpecialOpeningCloseTime = scheduleCloseTime ?? "17:00"
+            draftSpecialOpeningLastEntryTime = scheduleLastEntryTime
+        }
+    }
+
+    private func buildDraftSpecialOpenings() -> [SpecialOpening] {
+        let open = draftSpecialOpeningOpenTime
+        let close = draftSpecialOpeningCloseTime
+        let last = draftSpecialOpeningLastEntryTime
+        switch specialOpeningMode {
+        case .date:
+            return [
+                SpecialOpening(rule: .date(draftSpecialOpeningDate),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            ]
+        case .weekday:
+            let weekdays = draftSpecialOpeningWeekdays.sorted { $0.calendarValue < $1.calendarValue }
+            return weekdays.map { weekday in
+                SpecialOpening(rule: .weekday(weekday),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            }
+        case .range:
+            let start = min(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
+            let end = max(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
+            return [
+                SpecialOpening(rule: .range(start: start, end: end),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            ]
+        }
+    }
+
+    private func commitDraftSpecialOpening() {
+        let items = buildDraftSpecialOpenings()
+        if let index = editingSpecialOpeningIndex {
+            scheduleSpecialOpenings.remove(at: index)
+            if !items.isEmpty {
+                scheduleSpecialOpenings.insert(contentsOf: items, at: index)
+            }
+            editingSpecialOpeningIndex = nil
+        } else {
+            scheduleSpecialOpenings.append(contentsOf: items)
+        }
+    }
+
+    private func toggleDraftWeekday(_ weekday: Weekday) {
+        if draftSpecialOpeningWeekdays.contains(weekday) {
+            draftSpecialOpeningWeekdays.remove(weekday)
+        } else {
+            draftSpecialOpeningWeekdays.insert(weekday)
         }
     }
 
@@ -1048,6 +1156,109 @@ struct ExhibitionFormView: View {
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $showSpecialOpeningEditor) {
+                NavigationStack {
+                    Form {
+                        Section("種別") {
+                            Picker("種別", selection: $specialOpeningMode) {
+                                ForEach(SpecialOpeningInputMode.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        Section("対象") {
+                            switch specialOpeningMode {
+                            case .date:
+                                DatePicker("日付", selection: $draftSpecialOpeningDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                            case .weekday:
+                                HStack(spacing: 6) {
+                                    ForEach(Weekday.allCases, id: \.self) { day in
+                                        let selected = draftSpecialOpeningWeekdays.contains(day)
+                                        Button(weekdayShortLabel(day)) {
+                                            toggleDraftWeekday(day)
+                                        }
+                                        .font(.caption)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(selected ? Color.blue.opacity(0.2) : Color(.systemGray5))
+                                        .clipShape(Capsule())
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            case .range:
+                                DatePicker("開始日", selection: $draftSpecialOpeningStartDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                                DatePicker("終了日", selection: $draftSpecialOpeningEndDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                            }
+                        }
+                        Section("時間") {
+                            HStack {
+                                Text("開館")
+                                Spacer()
+                                DatePicker("", selection: timeBinding($draftSpecialOpeningOpenTime, defaultTime: "10:00"), displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            HStack {
+                                Text("閉館")
+                                Spacer()
+                                DatePicker("", selection: timeBinding($draftSpecialOpeningCloseTime, defaultTime: "17:00"), displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            HStack {
+                                Text("最終入場")
+                                Spacer()
+                                if draftSpecialOpeningLastEntryTime != nil {
+                                    HStack(spacing: 8) {
+                                        DatePicker("", selection: timeBindingOptional($draftSpecialOpeningLastEntryTime, defaultTime: draftSpecialOpeningCloseTime), displayedComponents: .hourAndMinute)
+                                            .labelsHidden()
+                                        Button {
+                                            draftSpecialOpeningLastEntryTime = nil
+                                        } label: {
+                                            Image(systemName: "minus.circle")
+                                                .foregroundStyle(.red)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                } else {
+                                    HStack(spacing: 6) {
+                                        Text("未設定")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                        Button {
+                                            draftSpecialOpeningLastEntryTime = draftSpecialOpeningCloseTime
+                                        } label: {
+                                            Image(systemName: "plus.circle")
+                                                .foregroundStyle(.blue)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle(editingSpecialOpeningIndex == nil ? "特別開館時間" : "特別開館時間を編集")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("キャンセル") {
+                                editingSpecialOpeningIndex = nil
+                                showSpecialOpeningEditor = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(editingSpecialOpeningIndex == nil ? "追加" : "保存") {
+                                commitDraftSpecialOpening()
+                                showSpecialOpeningEditor = false
+                            }
+                            .disabled(specialOpeningMode == .weekday && draftSpecialOpeningWeekdays.isEmpty)
+                        }
+                    }
+                }
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .environment(\.calendar, Calendar(identifier: .gregorian))
             }
             .sheet(item: $mapPickerPayload) { payload in
                 NavigationStack {

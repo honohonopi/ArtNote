@@ -88,12 +88,33 @@ enum GeminiFlyerExtractor {
             .compactMap { ISODateParser.parseISODate($0) }
         let specialOpenings = (payload.exceptions?.specialOpenings ?? [])
             .compactMap { entry -> SpecialOpening? in
-                guard let dateStr = entry.date?.trimmed, !dateStr.isEmpty else { return nil }
                 let openTime = entry.openTime?.trimmed ?? ""
                 let closeTime = entry.closeTime?.trimmed ?? ""
                 let note = entry.note?.trimmed ?? ""
+                guard let ruleType = entry.ruleType?.trimmed.lowercased(),
+                      ["date", "weekday", "range"].contains(ruleType) else {
+                    return nil
+                }
 
-                if let weekday = parseWeekdayRule(dateStr) {
+                switch ruleType {
+                case "range":
+                    guard let startStr = entry.startDate?.trimmed,
+                          let endStr = entry.endDate?.trimmed,
+                          let start = ISODateParser.parseISODate(startStr),
+                          let end = ISODateParser.parseISODate(endStr)
+                    else { return nil }
+                    guard !openTime.isEmpty, !closeTime.isEmpty else { return nil }
+                    return SpecialOpening(
+                        rule: .range(start: start, end: end),
+                        openTime: openTime,
+                        closeTime: closeTime,
+                        lastEntryTime: entry.lastEntryTime,
+                        note: entry.note
+                    )
+                case "weekday":
+                    guard let dateStr = entry.date?.trimmed,
+                          let weekday = parseWeekdayRule(dateStr)
+                    else { return nil }
                     guard !openTime.isEmpty, !closeTime.isEmpty else { return nil }
                     return SpecialOpening(
                         rule: .weekday(weekday),
@@ -102,26 +123,30 @@ enum GeminiFlyerExtractor {
                         lastEntryTime: entry.lastEntryTime,
                         note: entry.note
                     )
-                }
+                case "date":
+                    guard let dateStr = entry.date?.trimmed,
+                          let date = ISODateParser.parseISODate(dateStr)
+                    else { return nil }
 
-                guard let date = ISODateParser.parseISODate(dateStr) else { return nil }
-
-                if openTime.isEmpty || closeTime.isEmpty {
-                    if containsOpenKeyword(note) {
-                        openDates.append(date)
-                    } else if containsClosedKeyword(note) {
-                        closedDates.append(date)
+                    if openTime.isEmpty || closeTime.isEmpty {
+                        if containsOpenKeyword(note) {
+                            openDates.append(date)
+                        } else if containsClosedKeyword(note) {
+                            closedDates.append(date)
+                        }
+                        return nil
                     }
+
+                    return SpecialOpening(
+                        rule: .date(date),
+                        openTime: openTime,
+                        closeTime: closeTime,
+                        lastEntryTime: entry.lastEntryTime,
+                        note: entry.note
+                    )
+                default:
                     return nil
                 }
-
-                return SpecialOpening(
-                    rule: .date(date),
-                    openTime: openTime,
-                    closeTime: closeTime,
-                    lastEntryTime: entry.lastEntryTime,
-                    note: entry.note
-                )
             }
             .filter { isValidSpecialOpening($0) }
 

@@ -41,9 +41,34 @@ struct ExhibitionEditView: View {
     @State private var scheduleClosedDates: [Date] = []
     @State private var scheduleOpenDates: [Date] = []
     @State private var scheduleSpecialOpenings: [SpecialOpening] = []
+    @State private var editingSpecialOpeningIndex: Int? = nil
+    @State private var showSpecialOpeningEditor = false
+    @State private var specialOpeningMode: SpecialOpeningInputMode = .date
+    @State private var draftSpecialOpeningDate = Date()
+    @State private var draftSpecialOpeningStartDate = Date()
+    @State private var draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    @State private var draftSpecialOpeningWeekdays: Set<Weekday> = []
+    @State private var draftSpecialOpeningOpenTime: String? = "10:00"
+    @State private var draftSpecialOpeningCloseTime: String? = "18:00"
+    @State private var draftSpecialOpeningLastEntryTime: String? = nil
     @State private var isScheduleExpanded = false
     private struct MapPayload: Identifiable { let id = UUID(); let query: String }
     private struct IdentCoord: Identifiable { let id = UUID(); let coord: CLLocationCoordinate2D }
+    private enum SpecialOpeningInputMode: String, CaseIterable, Identifiable {
+        case date
+        case weekday
+        case range
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .date: return "単日"
+            case .weekday: return "曜日"
+            case .range: return "期間"
+            }
+        }
+    }
     
     let exhibition: Exhibition
     
@@ -221,6 +246,109 @@ struct ExhibitionEditView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showSpecialOpeningEditor) {
+                NavigationStack {
+                    Form {
+                        Section("種別") {
+                            Picker("種別", selection: $specialOpeningMode) {
+                                ForEach(SpecialOpeningInputMode.allCases) { mode in
+                                    Text(mode.label).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        Section("対象") {
+                            switch specialOpeningMode {
+                            case .date:
+                                DatePicker("日付", selection: $draftSpecialOpeningDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                            case .weekday:
+                                HStack(spacing: 6) {
+                                    ForEach(Weekday.allCases, id: \.self) { day in
+                                        let selected = draftSpecialOpeningWeekdays.contains(day)
+                                        Button(weekdayShortLabel(day)) {
+                                            toggleDraftWeekday(day)
+                                        }
+                                        .font(.caption)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(selected ? Color.blue.opacity(0.2) : Color(.systemGray5))
+                                        .clipShape(Capsule())
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            case .range:
+                                DatePicker("開始日", selection: $draftSpecialOpeningStartDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                                DatePicker("終了日", selection: $draftSpecialOpeningEndDate, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                            }
+                        }
+                        Section("時間") {
+                            HStack {
+                                Text("開館")
+                                Spacer()
+                                DatePicker("", selection: timeBinding($draftSpecialOpeningOpenTime, defaultTime: "10:00"), displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            HStack {
+                                Text("閉館")
+                                Spacer()
+                                DatePicker("", selection: timeBinding($draftSpecialOpeningCloseTime, defaultTime: "18:00"), displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            HStack {
+                                Text("最終入場")
+                                Spacer()
+                                if draftSpecialOpeningLastEntryTime != nil {
+                                    HStack(spacing: 8) {
+                                        DatePicker("", selection: timeBinding($draftSpecialOpeningLastEntryTime, defaultTime: draftSpecialOpeningCloseTime ?? "18:00"), displayedComponents: .hourAndMinute)
+                                            .labelsHidden()
+                                        Button {
+                                            draftSpecialOpeningLastEntryTime = nil
+                                        } label: {
+                                            Image(systemName: "minus.circle")
+                                                .foregroundStyle(.red)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                } else {
+                                    HStack(spacing: 6) {
+                                        Text("未設定")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                        Button {
+                                            draftSpecialOpeningLastEntryTime = draftSpecialOpeningCloseTime ?? "18:00"
+                                        } label: {
+                                            Image(systemName: "plus.circle")
+                                                .foregroundStyle(.blue)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle(editingSpecialOpeningIndex == nil ? "特別開館時間" : "特別開館時間を編集")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("キャンセル") {
+                                editingSpecialOpeningIndex = nil
+                                showSpecialOpeningEditor = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(editingSpecialOpeningIndex == nil ? "追加" : "保存") {
+                                commitDraftSpecialOpening()
+                                showSpecialOpeningEditor = false
+                            }
+                            .disabled(specialOpeningMode == .weekday && draftSpecialOpeningWeekdays.isEmpty)
+                        }
+                    }
+                }
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .environment(\.calendar, Calendar(identifier: .gregorian))
+            }
             // MARK: - ライブラリ（PhotosPicker）
             .sheet(isPresented: $showLibrary) {
                 PhotoLibraryPicker { image in
@@ -349,6 +477,105 @@ struct ExhibitionEditView: View {
         }
     }
 
+    private func specialOpeningLabel(_ opening: SpecialOpening) -> String {
+        switch opening.rule {
+        case .date(let date):
+            return date.ymdString
+        case .weekday(let weekday):
+            return weekdayLabel(weekday)
+        case .range(let start, let end):
+            return "\(start.ymdString)〜\(end.ymdString)"
+        }
+    }
+
+    private func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
+        if let opening {
+            switch opening.rule {
+            case .date(let date):
+                specialOpeningMode = .date
+                draftSpecialOpeningDate = date
+                draftSpecialOpeningWeekdays = []
+            case .weekday(let weekday):
+                specialOpeningMode = .weekday
+                draftSpecialOpeningDate = Date()
+                draftSpecialOpeningWeekdays = [weekday]
+            case .range(let start, let end):
+                specialOpeningMode = .range
+                draftSpecialOpeningStartDate = start
+                draftSpecialOpeningEndDate = end
+                draftSpecialOpeningWeekdays = []
+            }
+            draftSpecialOpeningOpenTime = opening.openTime
+            draftSpecialOpeningCloseTime = opening.closeTime
+            draftSpecialOpeningLastEntryTime = opening.lastEntryTime
+        } else {
+            specialOpeningMode = .date
+            draftSpecialOpeningDate = Date()
+            draftSpecialOpeningStartDate = Date()
+            draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            draftSpecialOpeningWeekdays = []
+            draftSpecialOpeningOpenTime = scheduleOpenTime ?? "10:00"
+            draftSpecialOpeningCloseTime = scheduleCloseTime ?? "18:00"
+            draftSpecialOpeningLastEntryTime = scheduleLastEntryTime
+        }
+    }
+
+    private func buildDraftSpecialOpenings() -> [SpecialOpening] {
+        let open = draftSpecialOpeningOpenTime ?? "10:00"
+        let close = draftSpecialOpeningCloseTime ?? "18:00"
+        let last = draftSpecialOpeningLastEntryTime
+        switch specialOpeningMode {
+        case .date:
+            return [
+                SpecialOpening(rule: .date(draftSpecialOpeningDate),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            ]
+        case .weekday:
+            let weekdays = draftSpecialOpeningWeekdays.sorted { $0.calendarValue < $1.calendarValue }
+            return weekdays.map { weekday in
+                SpecialOpening(rule: .weekday(weekday),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            }
+        case .range:
+            let start = min(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
+            let end = max(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
+            return [
+                SpecialOpening(rule: .range(start: start, end: end),
+                               openTime: open,
+                               closeTime: close,
+                               lastEntryTime: last,
+                               note: nil)
+            ]
+        }
+    }
+
+    private func commitDraftSpecialOpening() {
+        let items = buildDraftSpecialOpenings()
+        if let index = editingSpecialOpeningIndex {
+            scheduleSpecialOpenings.remove(at: index)
+            if !items.isEmpty {
+                scheduleSpecialOpenings.insert(contentsOf: items, at: index)
+            }
+            editingSpecialOpeningIndex = nil
+        } else {
+            scheduleSpecialOpenings.append(contentsOf: items)
+        }
+    }
+
+    private func toggleDraftWeekday(_ weekday: Weekday) {
+        if draftSpecialOpeningWeekdays.contains(weekday) {
+            draftSpecialOpeningWeekdays.remove(weekday)
+        } else {
+            draftSpecialOpeningWeekdays.insert(weekday)
+        }
+    }
+
     private func toggleWeekday(_ weekday: Weekday) {
         if let idx = scheduleClosedWeekdays.firstIndex(of: weekday) {
             scheduleClosedWeekdays.remove(at: idx)
@@ -421,15 +648,9 @@ struct ExhibitionEditView: View {
                 Text("特別開館").font(.subheadline)
                 Spacer()
                 Button {
-                    let open = scheduleOpenTime ?? "10:00"
-                    let close = scheduleCloseTime ?? "18:00"
-                    scheduleSpecialOpenings.append(
-                        SpecialOpening(rule: .date(Date()),
-                                       openTime: open,
-                                       closeTime: close,
-                                       lastEntryTime: scheduleLastEntryTime,
-                                       note: nil)
-                    )
+                    editingSpecialOpeningIndex = nil
+                    prepareSpecialOpeningEditor()
+                    showSpecialOpeningEditor = true
                 } label: {
                     Image(systemName: "plus.circle")
                 }
@@ -437,57 +658,32 @@ struct ExhibitionEditView: View {
             }
             ForEach(scheduleSpecialOpenings.indices, id: \.self) { idx in
                 VStack(alignment: .leading, spacing: 6) {
-                    switch scheduleSpecialOpenings[idx].rule {
-                    case .date(let date):
-                        DatePicker("日付", selection: Binding(
-                            get: { date },
-                            set: { newDate in
-                                scheduleSpecialOpenings[idx].rule = .date(newDate)
-                            }
-                        ), displayedComponents: .date)
-                        .labelsHidden()
-                    case .weekday(let weekday):
-                        Text(weekdayLabel(weekday))
+                    HStack {
+                        Text(specialOpeningLabel(scheduleSpecialOpenings[idx]))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        DatePicker("開館", selection: timeBinding(
-                            Binding<String?>(
-                                get: { scheduleSpecialOpenings[idx].openTime },
-                                set: { scheduleSpecialOpenings[idx].openTime = $0 ?? "" }
-                            ),
-                            defaultTime: "10:00"
-                        ), displayedComponents: .hourAndMinute).labelsHidden()
-                        Text("〜")
-                        DatePicker("閉館", selection: timeBinding(
-                            Binding<String?>(
-                                get: { scheduleSpecialOpenings[idx].closeTime },
-                                set: { scheduleSpecialOpenings[idx].closeTime = $0 ?? "" }
-                            ),
-                            defaultTime: "18:00"
-                        ), displayedComponents: .hourAndMinute).labelsHidden()
-                    }
-                    HStack {
-                        Text("最終入場")
                         Spacer()
-                        if scheduleSpecialOpenings[idx].lastEntryTime != nil {
-                            DatePicker("最終入場", selection: timeBinding(
-                                Binding<String?>(
-                                    get: { scheduleSpecialOpenings[idx].lastEntryTime },
-                                    set: { scheduleSpecialOpenings[idx].lastEntryTime = $0 }
-                                ),
-                                defaultTime: "17:30"
-                            ), displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            Button("削除") { scheduleSpecialOpenings[idx].lastEntryTime = nil }
-                                .font(.caption)
-                                .buttonStyle(.bordered)
-                        } else {
-                            Button("追加") { scheduleSpecialOpenings[idx].lastEntryTime = scheduleSpecialOpenings[idx].closeTime }
-                                .font(.caption)
-                                .buttonStyle(.bordered)
+                        Text("\(scheduleSpecialOpenings[idx].openTime)〜\(scheduleSpecialOpenings[idx].closeTime)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Menu {
+                            Button("編集") {
+                                editingSpecialOpeningIndex = idx
+                                prepareSpecialOpeningEditor(for: scheduleSpecialOpenings[idx])
+                                showSpecialOpeningEditor = true
+                            }
+                            Button("削除", role: .destructive) {
+                                scheduleSpecialOpenings.remove(at: idx)
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundStyle(.secondary)
                         }
+                    }
+                    if let last = scheduleSpecialOpenings[idx].lastEntryTime, !last.isEmpty {
+                        Text("最終入場 \(last)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     HStack {
                         Text("メモ")

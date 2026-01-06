@@ -57,10 +57,14 @@ enum GeminiPrompts {
         "open_dates": ["YYYY-MM-DD"],
         "special_openings": [
           {
+            "rule_type": "date" | "weekday" | "range",
             "date": "YYYY-MM-DD"
                   | "EVERY_MONDAY" | "EVERY_TUESDAY" | "EVERY_WEDNESDAY"
                   | "EVERY_THURSDAY" | "EVERY_FRIDAY"
-                  | "EVERY_SATURDAY" | "EVERY_SUNDAY",
+                  | "EVERY_SATURDAY" | "EVERY_SUNDAY"
+                  | null,
+            "start_date": "YYYY-MM-DD" | null,
+            "end_date": "YYYY-MM-DD" | null,
             "open_time": "HH:mm",
             "close_time": "HH:mm",
             "last_entry_time": "HH:mm" | null,
@@ -117,10 +121,16 @@ enum GeminiPrompts {
     - closed_dates: specific dates when the exhibition is closed.
     - open_dates: specific dates when the exhibition is open despite normal closure.
     - special_openings: only when opening hours differ from the regular schedule.
+    - special_openings MUST include both open_time and close_time (full opening hours). If either is missing, do NOT output it.
+    - For special_openings:
+      - Always set "rule_type" as one of "date" | "weekday" | "range".
+      - Single date: rule_type = "date", use "date" = "YYYY-MM-DD".
+      - Weekday rule: rule_type = "weekday", use "date" = "EVERY_FRIDAY" etc.
+      - Date range: rule_type = "range", use "start_date" and "end_date" for a continuous range; set "date" to null.
     - If a specific date is listed as open/closed without hours, put it in open_dates/closed_dates (NOT special_openings).
     - Do NOT include exhibition events (e.g., gallery talks, lectures, workshops) as special_openings.
     - Do NOT include closed weekdays or holiday rules inside special_openings.
-    - If a line describes an event time without open/close hours, ignore it.
+    - If a line describes an event time (e.g., "展示解説 14:00") that is not opening hours, ignore it.
 
     ### admission (IMPORTANT)
     - Extract ONLY admission fee information.

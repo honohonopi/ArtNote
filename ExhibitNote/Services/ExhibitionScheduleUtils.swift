@@ -157,6 +157,19 @@ enum ExhibitionScheduleUtils {
         }) {
             return exact
         }
+        if let inRange = openings.first(where: { record in
+            guard record.ruleType == .range,
+                  let startText = record.startDate,
+                  let endText = record.endDate,
+                  let startDate = parseYMD(startText),
+                  let endDate = parseYMD(endText)
+            else { return false }
+            let start = cal.startOfDay(for: startDate)
+            let end = cal.startOfDay(for: endDate)
+            return day >= start && day <= end
+        }) {
+            return inRange
+        }
         let weekday = cal.component(.weekday, from: day)
         return openings.first(where: { record in
             guard record.ruleType == .weekday,

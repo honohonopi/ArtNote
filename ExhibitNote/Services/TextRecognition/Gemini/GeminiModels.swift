@@ -41,7 +41,10 @@ struct GeminiExceptions: Decodable {
 }
 
 struct GeminiSpecialOpening: Decodable {
+    let ruleType: String?
     let date: String?
+    let startDate: String?
+    let endDate: String?
     let openTime: String?
     let closeTime: String?
     let lastEntryTime: String?
