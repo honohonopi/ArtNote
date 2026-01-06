@@ -187,25 +187,6 @@ private extension View {
     }
 }
 
-// MARK: - ステータスの表示ユーティリティ
-
-private extension Exhibition.RunStatus {
-    var badgeText: String {
-        switch self {
-        case .notStarted: return "未開催"
-        case .ongoing:    return "開催中"
-        case .finished:   return "終了"
-        }
-    }
-    var badgeColor: Color {
-        switch self {
-        case .notStarted: return .gray
-        case .ongoing:    return .blue
-        case .finished:   return .secondary
-        }
-    }
-}
-
 // MARK: - Row 先頭のサムネイル
 private struct ExhibitionThumbnail: View {
     let ex: Exhibition

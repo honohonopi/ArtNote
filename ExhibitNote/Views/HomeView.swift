@@ -209,7 +209,7 @@ struct HomeNearbySectionView: View {
 struct HomeSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("useAIExtraction") private var useAIExtraction = false
-    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserAdmissionCategory.adult.rawValue
+    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
 
     var body: some View {
         NavigationStack {
@@ -219,7 +219,7 @@ struct HomeSettingsView: View {
                 }
                 Section("ユーザー種別") {
                     Picker("種別", selection: $userAdmissionCategoryRaw) {
-                        ForEach(UserAdmissionCategory.allCases) { category in
+                        ForEach(UserTicketCategory.allCases) { category in
                             Text(category.displayName).tag(category.rawValue)
                         }
                     }

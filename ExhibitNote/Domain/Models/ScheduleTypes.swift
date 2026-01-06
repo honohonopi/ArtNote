@@ -7,29 +7,9 @@
 
 import Foundation
 
-// スケジュール判定と保存で使う共通型
-struct SpecialOpening {
-    enum Rule {
-        case date(Date)
-        case weekday(Weekday)
-    }
-    
-    var rule: Rule
-    var openTime: String
-    var closeTime: String
-    var lastEntryTime: String?
-    var note: String?
-}
-
-enum HolidayHandling {
-    case none
-    case openOnHoliday
-    case openOnHolidayCloseNextWeekday
-}
-
-enum Weekday: String, CaseIterable {
+enum Weekday: String, CaseIterable, Codable {
     case sunday, monday, tuesday, wednesday, thursday, friday, saturday
-    
+
     var calendarValue: Int {
         switch self {
         case .sunday: return 1
@@ -41,4 +21,11 @@ enum Weekday: String, CaseIterable {
         case .saturday: return 7
         }
     }
+}
+
+// 祝日対応
+enum HolidayHandling: String, CaseIterable, Codable {
+    case none = "NONE"
+    case openOnHoliday = "OPEN_ON_HOLIDAY"
+    case openOnHolidayCloseNextWeekday = "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
 }

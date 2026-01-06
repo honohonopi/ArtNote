@@ -144,23 +144,33 @@ enum ExhibitionScheduleUtils {
     }
     
     private static func matchSpecialOpening(
-        _ openings: [Exhibition.SpecialOpeningRecord],
+        _ openings: [SpecialOpeningRecord],
         _ day: Date,
         _ cal: Calendar
-    ) -> Exhibition.SpecialOpeningRecord? {
+    ) -> SpecialOpeningRecord? {
         if let exact = openings.first(where: { record in
-            guard record.ruleType == "date", let date = record.date else { return false }
+            guard record.ruleType == .date,
+                  let dateString = record.date,
+                  let date = parseYMD(dateString)
+            else { return false }
             return cal.isDate(date, inSameDayAs: day)
         }) {
             return exact
         }
         let weekday = cal.component(.weekday, from: day)
         return openings.first(where: { record in
-            guard record.ruleType == "weekday",
-                  let raw = record.weekday?.lowercased(),
-                  let w = Weekday(rawValue: raw)
+            guard record.ruleType == .weekday,
+                  let w = record.weekday
             else { return false }
             return w.calendarValue == weekday
         })
+    }
+
+    private static func parseYMD(_ text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = tokyoTimeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

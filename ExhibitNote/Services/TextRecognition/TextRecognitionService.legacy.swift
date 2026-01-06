@@ -12,6 +12,7 @@ import CoreML
 import NaturalLanguage
 import GoogleGenerativeAI
 
+#if false
 enum TextRecognitionError: Error {
     case noImage, handlerFailed, recognizeFailed, aiResponseInvalid
 }
@@ -153,16 +154,23 @@ struct TextRecognitionService {
 
     private struct GeminiExtraInfoResponse: Decodable {
         let admission: GeminiAdmission?
-        let reservationRequired: Bool?
-        
-        private enum CodingKeys: String, CodingKey {
-            case admission
-            case reservationRequired = "reservation_required"
-        }
+        let reservation: GeminiReservation?
     }
 
     private struct GeminiAdmission: Decodable {
-        let fees: [AdmissionFee]?
+        let fees: [GeminiAdmissionFee]?
+    }
+
+    private struct GeminiReservation: Decodable {
+        let required: Bool?
+        let note: String?
+    }
+
+    private struct GeminiAdmissionFee: Decodable {
+        let category: String?
+        let label: String?
+        let priceYen: Int?
+        let note: String?
     }
     
     static func extractFlyerFields(from image: UIImage) async throws -> FlyerExtractionResult {
@@ -406,7 +414,8 @@ struct TextRecognitionService {
         - If a category covers multiple age groups (e.g. "中高生"):
           - Choose the closest representative category
             (e.g. "high_school_student").
-        - If the fee is free, set price_yen to null and explain briefly in note.
+        - If the fee is free, set price_yen to 0 and explain briefly in note if needed.
+        - price_yen = null MUST NEVER mean free.
         - Do NOT merge or split categories beyond what is written.
         - Do NOT interpret user attributes.
 
@@ -478,30 +487,78 @@ struct TextRecognitionService {
     }
 
     // MARK: - Gemini (Extra Info)
-    static func extractExtraInfoWithAI(from image: UIImage) async -> (fees: [AdmissionFee], reservationRequired: Bool?)? {
+    static func extractExtraInfoWithAI(from image: UIImage) async -> (fees: [AdmissionFeeRule], reservationRequired: Bool?)? {
         let model = GenerativeModel(name: "gemini-2.5-flash-lite", apiKey: APIKey.default)
         let prompt = """
-        You are extracting admission fee and reservation info from a Japanese exhibition poster image.
+        You are extracting factual ticket/admission and reservation information from a Japanese exhibition poster image.
 
-        Respond ONLY in valid JSON with the following structure:
+        Respond ONLY in valid JSON.
+        Do NOT include explanations, markdown, or extra text.
 
+        --------------------------------
+        GENERAL RULES
+        --------------------------------
+        - Extract ONLY factual information explicitly written on the poster.
+        - Do NOT infer or compute missing numeric values.
+        - If information is not clearly stated, use null or empty arrays.
+        - Prices are in Japanese Yen.
+
+        --------------------------------
+        OUTPUT FORMAT
+        --------------------------------
         {
           "admission": {
+            "is_free": boolean,
             "fees": [
-              { "category": "adult|university_student|high_school_student|junior_high_student|elementary_student|preschool|senior|free|other", "label": "string", "price_yen": 0, "note": "string|null" }
+              {
+                "category": "adult" | "university_student" | "vocational_student" | "high_school_student" | "junior_high_student" | "elementary_student" | "preschool" | "senior" | "free" | "other",
+                "label": string,
+                "price_yen": number | null,
+                "note": string | null
+              }
             ]
           },
-          "reservation_required": true | false | null
+          "reservation": {
+            "required": boolean,
+            "note": string | null
+          }
         }
 
-        Rules:
-        - Do not guess; use null if unknown.
-        - If the fee is free, set category to "free" and price_yen to null.
-        - price_yen is Int for paid categories.
-        - label must be a normalized short label (e.g. "一般", "大学生", "高校生", "中学生", "小学生", "未就学児", "シニア", "新成人", "その他").
-        - Put the original poster wording or any extra conditions into note.
-        - If the poster uses a combined label (e.g. "中高生"), keep label concise (e.g. "高校生") and put the full wording in note.
-        - For conditional or date-specific discounts, keep the condition in note.
+        --------------------------------
+        DETAILED INSTRUCTIONS
+        --------------------------------
+        ### admission.is_free
+        - Set true ONLY if the poster clearly states the exhibition is free for everyone (e.g., "入場無料", "観覧無料").
+        - If free is conditional (e.g., "18歳以下無料", "障がい者手帳...無料"), set is_free to false.
+
+        ### admission.fees
+        - Each entry represents one line/segment of fee information on the poster.
+        - label: keep the original wording as written (e.g., "一般", "高校生・大学生", "18歳以下").
+        - price_yen:
+          - If it is explicitly FREE, set price_yen = 0.
+          - If the poster does NOT provide a clear numeric price, set price_yen = null.
+          - If it is a discount without a numeric price (e.g., "半額", "2割引"), set price_yen = null AND explain in note that it is discounted (NOT free).
+        - Parentheses group fees:
+          - If written like "1500円（1300円）" and the poster also states the parentheses represent group pricing (e.g., "20名以上団体"),
+            output ONE fee entry with price_yen = 1500 and write the group info in note (e.g., "団体(20名以上): 1300円").
+          - Do NOT create a separate fee entry solely for the parentheses group price.
+        - If a line only describes group/discount policy (e.g., "20名以上の団体料金", "2回目ご来館時 半額"):
+          - Do NOT create a standalone fee row for it.
+          - Attach it as note to the closest main fee line instead.
+        - Conditional free:
+          - Use category = "other" (or the closest category if clearly applicable).
+          - Set price_yen = 0 only if the poster clearly states it is free for that condition, and write the condition in note.
+        - IMPORTANT: price_yen = null MUST NEVER mean free.
+
+        ### reservation
+        - required: true ONLY if advance reservation is explicitly required ("事前予約制", "日時指定予約必須", etc.).
+        - If reservation is partial/conditional, set required = true and explain in note.
+
+        --------------------------------
+        IMPORTANT PROHIBITIONS
+        --------------------------------
+        - Do NOT compute numeric discounted prices (e.g., do NOT convert "半額" to 750).
+        - Do NOT invent missing admission information.
         """
         do {
             let response = try await model.generateContent(prompt, image)
@@ -512,13 +569,69 @@ struct TextRecognitionService {
                 return nil
             }
             let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
             let payload = try decoder.decode(GeminiExtraInfoResponse.self, from: data)
             guard let fees = payload.admission?.fees else {
                 return nil
             }
-            return (fees: fees, reservationRequired: payload.reservationRequired)
+            let mapped = mapAdmissionFees(fees)
+            return (fees: mapped, reservationRequired: payload.reservation?.required)
         } catch {
             return nil
+        }
+    }
+
+    private static func mapAdmissionFees(_ fees: [GeminiAdmissionFee]) -> [AdmissionFeeRule] {
+        fees.compactMap { fee in
+            let labelFromPayload = fee.label?.trimmed
+            let rawLabel = (labelFromPayload?.isEmpty == false ? labelFromPayload! : (defaultAdmissionLabel(for: fee.category) ?? "不明"))
+            var note = fee.note?.trimmed
+            var price = fee.priceYen
+            let category = fee.category?.trimmed.lowercased()
+
+            // 1) category=="free" は必ず free を意味するので 0 に寄せる（モデルがnullで返しても安全に）
+            if category == "free" {
+                price = 0
+            }
+
+            // 2) 「無料」と明記されてるのに price が null の場合は 0 に補正（安全寄り）
+            if price == nil {
+                let t = rawLabel + " " + (note ?? "")
+                if t.contains("無料") {
+                    price = 0
+                }
+            }
+            // 3) price==0 なのに「無料」明記が無いなら怪しいので nil に戻す（誤無料表示防止）
+            if price == 0 {
+                let t = rawLabel + " " + (note ?? "")
+                if !t.contains("無料") && category != "free" {
+                    price = nil
+                    let warn = "※0円と断定できないため未取得扱い"
+                    note = [note, warn].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " / ")
+                }
+            }
+            return AdmissionFeeRule(
+                rawLabel: rawLabel,
+                priceYen: price,                       // free=0 / unknown&discount=null
+                note: note?.isEmpty == false ? note : nil,
+                targets: []                            // targets は後段（ルール/ユーザー編集）で付与
+            )
+        }
+    }
+
+    private static func defaultAdmissionLabel(for category: String?) -> String? {
+        switch category {
+        case "adult": return "一般"
+        case "university_student": return "大学生"
+        case "vocational_student": return "専門学生"
+        case "high_school_student": return "高校生"
+        case "junior_high_student": return "中学生"
+        case "elementary_student": return "小学生"
+        case "preschool": return "未就学児"
+        case "senior": return "シニア"
+        case "free": return "無料"
+        case "other": return "その他"
+        default: return nil
         }
     }
     
@@ -659,8 +772,4 @@ struct TextRecognitionService {
     }
 }
 
-private extension String {
-    var trimmed: String {
-        trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-}
+#endif

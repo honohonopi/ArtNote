@@ -75,7 +75,7 @@ struct ExhibitionFormView: View {
     @State private var scheduleOpenDates: [Date] = []
     @State private var scheduleSpecialOpenings: [SpecialOpening] = []
 
-    @State private var admissionFees: [AdmissionFee] = []
+    @State private var admissionFees: [AdmissionFeeRule] = []
     @State private var reservationRequired: Bool? = nil
     @State private var showAdmissionFees = false
     
@@ -96,7 +96,7 @@ struct ExhibitionFormView: View {
         Task {
             do {
                 // ① 画像から情報抽出（設定で AI / OCR を切り替え）
-                let result: TextRecognitionService.FlyerExtractionResult
+                let result: FlyerExtractionResult
                 var usedAI = false
                 let shouldUseAI = useAIExtraction
                 if shouldUseAI {
@@ -199,13 +199,11 @@ struct ExhibitionFormView: View {
                         scheduleOpenDates = []
                         scheduleSpecialOpenings = []
                     }
-                }
-                if usedAI {
-                    if let extra = await TextRecognitionService.extractExtraInfoWithAI(from: image) {
-                        await MainActor.run {
-                            admissionFees = extra.fees
-                            reservationRequired = extra.reservationRequired
-                        }
+                    if let fees = result.admissionFees, !fees.isEmpty {
+                        admissionFees = fees
+                    }
+                    if let reservation = result.reservationRequired {
+                        reservationRequired = reservation
                     }
                 }
             } catch {
@@ -269,18 +267,8 @@ struct ExhibitionFormView: View {
         ex.scheduleHolidayHandling = scheduleHolidayHandling.map { holidayHandlingRaw($0) }
         ex.scheduleClosedDates = scheduleClosedDates
         ex.scheduleOpenDates = scheduleOpenDates
-        ex.scheduleSpecialOpenings = scheduleSpecialOpenings.map {
-            Exhibition.SpecialOpeningRecord(
-                ruleType: specialOpeningRuleType($0.rule),
-                date: specialOpeningRuleDate($0.rule),
-                weekday: specialOpeningRuleWeekday($0.rule),
-                openTime: $0.openTime,
-                closeTime: $0.closeTime,
-                lastEntryTime: $0.lastEntryTime,
-                note: $0.note
-            )
-        }
-        ex.admissionFees = admissionFees
+        ex.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
+        ex.admissionFeeRules = admissionFees
         ex.reservationRequired = reservationRequired
         ex.posterThumbData = posterThumbData
         if let c = tempCoordinate {
@@ -398,11 +386,14 @@ struct ExhibitionFormView: View {
         .joined(separator: " / ")
     }
 
-    private func admissionPriceText(_ fee: AdmissionFee) -> String {
-        if fee.category == .free || fee.priceYen == nil {
+    private func admissionPriceText(_ fee: AdmissionFeeRule) -> String {
+        if fee.isFreeLike {
             return "無料"
         }
-        return "\(fee.priceYen ?? 0)円"
+        if let price = fee.priceYen {
+            return "\(price)円"
+        }
+        return "未取得"
     }
 
     private func weekdayLabel(_ weekday: Weekday) -> String {
@@ -414,27 +405,6 @@ struct ExhibitionFormView: View {
         case .friday: return "毎週金曜"
         case .saturday: return "毎週土曜"
         case .sunday: return "毎週日曜"
-        }
-    }
-
-    private func specialOpeningRuleType(_ rule: SpecialOpening.Rule) -> String {
-        switch rule {
-        case .date: return "date"
-        case .weekday: return "weekday"
-        }
-    }
-
-    private func specialOpeningRuleDate(_ rule: SpecialOpening.Rule) -> Date? {
-        switch rule {
-        case .date(let date): return date
-        case .weekday: return nil
-        }
-    }
-
-    private func specialOpeningRuleWeekday(_ rule: SpecialOpening.Rule) -> String? {
-        switch rule {
-        case .date: return nil
-        case .weekday(let weekday): return weekday.rawValue
         }
     }
 
@@ -553,7 +523,7 @@ struct ExhibitionFormView: View {
                             ForEach(admissionFees) { fee in
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text(fee.label)
+                                        Text(fee.rawLabel)
                                         Spacer()
                                         Text(admissionPriceText(fee))
                                             .foregroundStyle(.secondary)

@@ -33,7 +33,7 @@ struct ExhibitionDetailView: View {
     @State private var showMapChoice = false
     @State private var ocrPickedImage: UIImage?
     @State private var showAdmissionDetails = false
-    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserAdmissionCategory.adult.rawValue
+    @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -178,18 +178,18 @@ struct ExhibitionDetailView: View {
                 }
             }
             
-            if !exhibition.admissionFees.isEmpty || exhibition.reservationRequired == true {
+            if !exhibition.admissionFeeRules.isEmpty || exhibition.reservationRequired == true {
                 Section {
-                    let userCategory = UserAdmissionCategory(rawValue: userAdmissionCategoryRaw) ?? .adult
-                    let resolved = resolvedFee(for: userCategory, fees: exhibition.admissionFees)
+                    let userCategory = UserTicketCategory(rawValue: userAdmissionCategoryRaw) ?? .adult
+                    let resolved = exhibition.resolvedAdmissionFee(for: userCategory)
                     DisclosureGroup(isExpanded: $showAdmissionDetails) {
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(exhibition.admissionFees) { fee in
+                            ForEach(exhibition.admissionFeeRules) { fee in
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Text(fee.label)
+                                        Text(fee.rawLabel)
                                         Spacer()
-                                        Text(fee.category == .free || fee.priceYen == nil ? "無料" : "\(fee.priceYen ?? 0)円")
+                                        Text(fee.isFreeLike ? "無料" : "\(fee.priceYen ?? 0)円")
                                             .foregroundStyle(.secondary)
                                     }
                                     if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -207,7 +207,7 @@ struct ExhibitionDetailView: View {
                             Text("入館料")
                             Spacer()
                             if let fee = resolved {
-                                Text(fee.category == .free || fee.priceYen == nil ? "無料" : "\(fee.priceYen ?? 0)円")
+                                Text(fee.isFreeLike ? "無料" : "\(fee.priceYen ?? 0)円")
                                     .foregroundStyle(.secondary)
                             }
                             if exhibition.reservationRequired == true {

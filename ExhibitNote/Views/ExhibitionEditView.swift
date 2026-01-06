@@ -71,25 +71,9 @@ struct ExhibitionEditView: View {
         _scheduleHolidayHandling = State(initialValue: parseHolidayHandling(exhibition.scheduleHolidayHandling))
         _scheduleClosedDates = State(initialValue: exhibition.scheduleClosedDates)
         _scheduleOpenDates = State(initialValue: exhibition.scheduleOpenDates)
-        _scheduleSpecialOpenings = State(initialValue: exhibition.scheduleSpecialOpenings.compactMap { record in
-            if record.ruleType == "weekday",
-               let raw = record.weekday?.lowercased(),
-               let weekday = Weekday(rawValue: raw) {
-                return SpecialOpening(rule: .weekday(weekday),
-                                      openTime: record.openTime,
-                                      closeTime: record.closeTime,
-                                      lastEntryTime: record.lastEntryTime,
-                                      note: record.note)
-            }
-            if let date = record.date {
-                return SpecialOpening(rule: .date(date),
-                                      openTime: record.openTime,
-                                      closeTime: record.closeTime,
-                                      lastEntryTime: record.lastEntryTime,
-                                      note: record.note)
-            }
-            return nil
-        })
+        _scheduleSpecialOpenings = State(initialValue:
+            exhibition.scheduleSpecialOpenings.compactMap { $0.toSpecialOpening() }
+        )
         _isScheduleExpanded = State(initialValue: !exhibition.scheduleClosedWeekdays.isEmpty
                                      || exhibition.scheduleOpenTime != nil
                                      || exhibition.scheduleCloseTime != nil
@@ -213,17 +197,7 @@ struct ExhibitionEditView: View {
                         exhibition.scheduleHolidayHandling = scheduleHolidayHandling.map { holidayHandlingRaw($0) }
                         exhibition.scheduleClosedDates = scheduleClosedDates
                         exhibition.scheduleOpenDates = scheduleOpenDates
-                        exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map {
-                            Exhibition.SpecialOpeningRecord(
-                                ruleType: specialOpeningRuleType($0.rule),
-                                date: specialOpeningRuleDate($0.rule),
-                                weekday: specialOpeningRuleWeekday($0.rule),
-                                openTime: $0.openTime,
-                                closeTime: $0.closeTime,
-                                lastEntryTime: $0.lastEntryTime,
-                                note: $0.note
-                            )
-                        }
+                        exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
                         if let c = tempCoordinate {
                             exhibition.setCoordinate(c)
                         } else {
@@ -549,26 +523,6 @@ struct ExhibitionEditView: View {
         }
     }
 
-    private func specialOpeningRuleType(_ rule: SpecialOpening.Rule) -> String {
-        switch rule {
-        case .date: return "date"
-        case .weekday: return "weekday"
-        }
-    }
-
-    private func specialOpeningRuleDate(_ rule: SpecialOpening.Rule) -> Date? {
-        switch rule {
-        case .date(let date): return date
-        case .weekday: return nil
-        }
-    }
-
-    private func specialOpeningRuleWeekday(_ rule: SpecialOpening.Rule) -> String? {
-        switch rule {
-        case .date: return nil
-        case .weekday(let weekday): return weekday.rawValue
-        }
-    }
     // MARK: - 画像を受け取ってモデルへ反映
     private func handlePickedImage(_ image: UIImage) {
         // サムネ生成（軽量化して保存）
