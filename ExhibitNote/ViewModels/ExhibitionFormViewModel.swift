@@ -10,22 +10,6 @@ import MapKit
 import PhotosUI
 import UIKit
 
-enum SpecialOpeningInputMode: String, CaseIterable, Identifiable {
-    case date
-    case weekday
-    case range
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .date: return "単日"
-        case .weekday: return "曜日"
-        case .range: return "期間"
-        }
-    }
-}
-
 @MainActor
 final class ExhibitionFormViewModel: ObservableObject {
     @Published var title = ""
