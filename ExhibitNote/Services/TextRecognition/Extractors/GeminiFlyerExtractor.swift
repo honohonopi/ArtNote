@@ -82,31 +82,48 @@ enum GeminiFlyerExtractor {
             .compactMap { Weekday(rawValue: $0.lowercased()) }
         let holidayHandling = parseHolidayHandling(regular.holidayHandling) ?? .none
 
-        let closedDates = (payload.exceptions?.closedDates ?? [])
+        var closedDates = (payload.exceptions?.closedDates ?? [])
             .compactMap { ISODateParser.parseISODate($0) }
-        let openDates = (payload.exceptions?.openDates ?? [])
+        var openDates = (payload.exceptions?.openDates ?? [])
             .compactMap { ISODateParser.parseISODate($0) }
         let specialOpenings = (payload.exceptions?.specialOpenings ?? [])
             .compactMap { entry -> SpecialOpening? in
                 guard let dateStr = entry.date?.trimmed, !dateStr.isEmpty else { return nil }
+                let openTime = entry.openTime?.trimmed ?? ""
+                let closeTime = entry.closeTime?.trimmed ?? ""
+                let note = entry.note?.trimmed ?? ""
+
                 if let weekday = parseWeekdayRule(dateStr) {
+                    guard !openTime.isEmpty, !closeTime.isEmpty else { return nil }
                     return SpecialOpening(
                         rule: .weekday(weekday),
-                        openTime: entry.openTime ?? "",
-                        closeTime: entry.closeTime ?? "",
+                        openTime: openTime,
+                        closeTime: closeTime,
                         lastEntryTime: entry.lastEntryTime,
                         note: entry.note
                     )
                 }
+
                 guard let date = ISODateParser.parseISODate(dateStr) else { return nil }
+
+                if openTime.isEmpty || closeTime.isEmpty {
+                    if containsOpenKeyword(note) {
+                        openDates.append(date)
+                    } else if containsClosedKeyword(note) {
+                        closedDates.append(date)
+                    }
+                    return nil
+                }
+
                 return SpecialOpening(
                     rule: .date(date),
-                    openTime: entry.openTime ?? "",
-                    closeTime: entry.closeTime ?? "",
+                    openTime: openTime,
+                    closeTime: closeTime,
                     lastEntryTime: entry.lastEntryTime,
                     note: entry.note
                 )
             }
+            .filter { isValidSpecialOpening($0) }
 
         if openTime == nil,
            closeTime == nil,
@@ -119,14 +136,17 @@ enum GeminiFlyerExtractor {
             return nil
         }
 
+        let uniqClosed = uniqueDates(closedDates)
+        let uniqOpen = uniqueDates(openDates)
+
         return ScheduleExtraction(
             openTime: openTime,
             closeTime: closeTime,
             lastEntryTime: lastEntryTime,
             closedWeekdays: closedWeekdays,
             holidayHandling: holidayHandling,
-            closedDates: closedDates,
-            openDates: openDates,
+            closedDates: uniqClosed,
+            openDates: uniqOpen,
             specialOpenings: specialOpenings
         )
     }
@@ -150,5 +170,49 @@ enum GeminiFlyerExtractor {
             return Weekday(rawValue: raw.lowercased())
         }
         return nil
+    }
+
+    private static func isValidSpecialOpening(_ opening: SpecialOpening) -> Bool {
+        let noteText = opening.note?.lowercased() ?? ""
+        if containsEventKeyword(noteText) || containsClosedKeyword(noteText) {
+            return false
+        }
+        let hasOpen = !opening.openTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasClose = !opening.closeTime.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return hasOpen && hasClose
+    }
+
+    private static func containsEventKeyword(_ text: String) -> Bool {
+        let keywords = [
+            "展示解説", "ギャラリートーク", "トーク", "講演", "講座",
+            "ワークショップ", "イベント", "レクチャー"
+        ]
+        return keywords.contains { text.contains($0) }
+    }
+
+    private static func containsClosedKeyword(_ text: String) -> Bool {
+        let keywords = ["休館", "休室", "休園", "closed"]
+        return keywords.contains { text.contains($0) }
+    }
+
+    private static func containsOpenKeyword(_ text: String) -> Bool {
+        let keywords = ["開館", "open", "祝"]
+        return keywords.contains { text.contains($0) }
+    }
+
+    private static func uniqueDates(_ dates: [Date]) -> [Date] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.dateFormat = "yyyy-MM-dd"
+        var seen = Set<String>()
+        var result: [Date] = []
+        for date in dates {
+            let key = formatter.string(from: date)
+            if seen.insert(key).inserted {
+                result.append(date)
+            }
+        }
+        return result
     }
 }

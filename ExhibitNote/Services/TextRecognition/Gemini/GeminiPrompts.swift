@@ -117,6 +117,10 @@ enum GeminiPrompts {
     - closed_dates: specific dates when the exhibition is closed.
     - open_dates: specific dates when the exhibition is open despite normal closure.
     - special_openings: only when opening hours differ from the regular schedule.
+    - If a specific date is listed as open/closed without hours, put it in open_dates/closed_dates (NOT special_openings).
+    - Do NOT include exhibition events (e.g., gallery talks, lectures, workshops) as special_openings.
+    - Do NOT include closed weekdays or holiday rules inside special_openings.
+    - If a line describes an event time without open/close hours, ignore it.
 
     ### admission (IMPORTANT)
     - Extract ONLY admission fee information.
