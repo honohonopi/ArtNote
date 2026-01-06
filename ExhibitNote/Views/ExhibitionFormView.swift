@@ -530,9 +530,9 @@ struct ExhibitionFormView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Text(holidayHandlingText(scheduleHolidayHandling))
-                            .foregroundStyle(.secondary)
-                        Image(systemName: "chevron.down")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.black)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .foregroundStyle(.blue)
                             .font(.caption)
                     }
                 }
@@ -1021,9 +1021,9 @@ struct ExhibitionFormView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Text(reservationStatusText(reservationRequired))
-                                    .foregroundStyle(.secondary)
-                                Image(systemName: "chevron.down")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.black)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .foregroundStyle(.blue)
                                     .font(.caption)
                             }
                         }

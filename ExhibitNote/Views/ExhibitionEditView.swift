@@ -161,9 +161,9 @@ struct ExhibitionEditView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Text(reservationStatusText(reservationRequired))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.primary)
                                 Image(systemName: "chevron.down")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.blue)
                                     .font(.caption)
                             }
                         }
