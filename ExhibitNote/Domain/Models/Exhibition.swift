@@ -40,8 +40,10 @@ final class Exhibition {
     var scheduleLastEntryTime: String? // 最終受付時間
     var scheduleClosedWeekdays: [String] = [] // 休館曜日
     var scheduleHolidayHandling: String? // 祝日扱い
-    var scheduleClosedDates: [Date] = [] // 休館日
-    var scheduleOpenDates: [Date] = [] // イレギュラーな開館日
+    var scheduleClosedDates: [Date] = [] // 休館日（旧）
+    var scheduleOpenDates: [Date] = [] // イレギュラーな開館日（旧）
+    var scheduleClosedDateRulesData: Data? // 休館日ルール（単日/期間）
+    var scheduleOpenDateRulesData: Data? // 開館日ルール（単日/期間）
     var scheduleSpecialOpeningsData: Data? // イレギュラーな開館時間を持つ日とその開館時間
 
     // --- 入館料・予約情報 ---

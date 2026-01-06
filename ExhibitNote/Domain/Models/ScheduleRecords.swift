@@ -16,6 +16,11 @@ enum SpecialOpeningRuleType: String, Codable {
     case range
 }
 
+enum DateRuleType: String, Codable {
+    case date
+    case range
+}
+
 struct SpecialOpeningRecord: Codable, Identifiable, Equatable {
     var id: String = UUID().uuidString
 
@@ -82,6 +87,35 @@ struct SpecialOpening: Equatable {
     var openTime: String
     var closeTime: String
     var lastEntryTime: String?
+    var note: String?
+}
+
+struct DateRuleRecord: Codable, Identifiable, Equatable {
+    var id: String = UUID().uuidString
+    var ruleType: DateRuleType
+    /// ruleType == .date のときのみ使用（YYYY-MM-DD）
+    var date: String?
+    /// ruleType == .range のときのみ使用（YYYY-MM-DD）
+    var startDate: String?
+    var endDate: String?
+    var note: String?
+
+    static func forDate(_ date: String, note: String? = nil) -> DateRuleRecord {
+        .init(ruleType: .date, date: date, startDate: nil, endDate: nil, note: note)
+    }
+
+    static func forRange(start: String, end: String, note: String? = nil) -> DateRuleRecord {
+        .init(ruleType: .range, date: nil, startDate: start, endDate: end, note: note)
+    }
+}
+
+struct DateRule: Equatable {
+    enum Rule: Equatable {
+        case date(Date)
+        case range(start: Date, end: Date)
+    }
+
+    var rule: Rule
     var note: String?
 }
 
@@ -155,6 +189,40 @@ extension SpecialOpening {
                              closeTime: closeTime,
                              lastEntryTime: lastEntryTime,
                              note: note)
+        }
+    }
+}
+
+extension DateRuleRecord {
+    func toDateRule() -> DateRule? {
+        switch ruleType {
+        case .date:
+            guard let dateString = date,
+                  let dateValue = ScheduleDateFormat.formatter.date(from: dateString) else {
+                return nil
+            }
+            return DateRule(rule: .date(dateValue), note: note)
+        case .range:
+            guard let start = startDate,
+                  let end = endDate,
+                  let startDate = ScheduleDateFormat.formatter.date(from: start),
+                  let endDate = ScheduleDateFormat.formatter.date(from: end)
+            else { return nil }
+            return DateRule(rule: .range(start: startDate, end: endDate), note: note)
+        }
+    }
+}
+
+extension DateRule {
+    func toRecord() -> DateRuleRecord {
+        switch rule {
+        case .date(let dateValue):
+            let text = ScheduleDateFormat.formatter.string(from: dateValue)
+            return .forDate(text, note: note)
+        case .range(let start, let end):
+            let startText = ScheduleDateFormat.formatter.string(from: start)
+            let endText = ScheduleDateFormat.formatter.string(from: end)
+            return .forRange(start: startText, end: endText, note: note)
         }
     }
 }

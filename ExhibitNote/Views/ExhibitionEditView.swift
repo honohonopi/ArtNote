@@ -38,8 +38,8 @@ struct ExhibitionEditView: View {
     @State private var scheduleLastEntryTime: String? = nil
     @State private var scheduleClosedWeekdays: [Weekday] = []
     @State private var scheduleHolidayHandling: HolidayHandling? = nil
-    @State private var scheduleClosedDates: [Date] = []
-    @State private var scheduleOpenDates: [Date] = []
+    @State private var scheduleClosedDateRules: [DateRule] = []
+    @State private var scheduleOpenDateRules: [DateRule] = []
     @State private var scheduleSpecialOpenings: [SpecialOpening] = []
     @State private var editingSpecialOpeningIndex: Int? = nil
     @State private var showSpecialOpeningEditor = false
@@ -94,8 +94,15 @@ struct ExhibitionEditView: View {
             exhibition.scheduleClosedWeekdays.compactMap { Weekday(rawValue: $0.lowercased()) }
         )
         _scheduleHolidayHandling = State(initialValue: parseHolidayHandling(exhibition.scheduleHolidayHandling))
-        _scheduleClosedDates = State(initialValue: exhibition.scheduleClosedDates)
-        _scheduleOpenDates = State(initialValue: exhibition.scheduleOpenDates)
+        _scheduleClosedDateRules = State(initialValue:
+            exhibition.scheduleClosedDateRules.compactMap { $0.toDateRule() }
+        )
+        _scheduleOpenDateRules = State(initialValue:
+            exhibition.scheduleOpenDateRules.compactMap { $0.toDateRule() }.filter { rule in
+                if case .date = rule.rule { return true }
+                return false
+            }
+        )
         _scheduleSpecialOpenings = State(initialValue:
             exhibition.scheduleSpecialOpenings.compactMap { $0.toSpecialOpening() }
         )
@@ -103,8 +110,8 @@ struct ExhibitionEditView: View {
                                      || exhibition.scheduleOpenTime != nil
                                      || exhibition.scheduleCloseTime != nil
                                      || exhibition.scheduleLastEntryTime != nil
-                                     || !exhibition.scheduleClosedDates.isEmpty
-                                     || !exhibition.scheduleOpenDates.isEmpty
+                                     || !exhibition.scheduleClosedDateRules.isEmpty
+                                     || !exhibition.scheduleOpenDateRules.isEmpty
                                      || !exhibition.scheduleSpecialOpenings.isEmpty
                                      || exhibition.scheduleHolidayHandling != nil)
     }
@@ -220,8 +227,8 @@ struct ExhibitionEditView: View {
                         exhibition.scheduleLastEntryTime = scheduleLastEntryTime
                         exhibition.scheduleClosedWeekdays = scheduleClosedWeekdays.map { $0.rawValue }
                         exhibition.scheduleHolidayHandling = scheduleHolidayHandling.map { holidayHandlingRaw($0) }
-                        exhibition.scheduleClosedDates = scheduleClosedDates
-                        exhibition.scheduleOpenDates = scheduleOpenDates
+                        exhibition.scheduleClosedDateRules = scheduleClosedDateRules.map { $0.toRecord() }
+                        exhibition.scheduleOpenDateRules = scheduleOpenDateRules.map { $0.toRecord() }
                         exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
                         if let c = tempCoordinate {
                             exhibition.setCoordinate(c)
@@ -420,8 +427,8 @@ struct ExhibitionEditView: View {
                 Text("祝日開館・翌平日休館").tag("OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY")
             }
 
-            dateListEditor(title: "特別休館日", dates: $scheduleClosedDates)
-            dateListEditor(title: "特別開館日", dates: $scheduleOpenDates)
+            dateRuleEditor(title: "特別休館日", rules: $scheduleClosedDateRules)
+            dateOnlyRuleEditor(title: "特別開館日", rules: $scheduleOpenDateRules)
 
             specialOpeningsEditor
         }
@@ -612,27 +619,56 @@ struct ExhibitionEditView: View {
         }
     }
 
-    private func dateListEditor(title: String, dates: Binding<[Date]>) -> some View {
+    private func dateRuleEditor(title: String, rules: Binding<[DateRule]>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title).font(.subheadline)
                 Spacer()
-                Button {
-                    dates.wrappedValue.append(Date())
+                Menu {
+                    Button("単日") {
+                        rules.wrappedValue.append(DateRule(rule: .date(Date()), note: nil))
+                    }
+                    Button("期間") {
+                        let start = Date()
+                        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+                        rules.wrappedValue.append(DateRule(rule: .range(start: start, end: end), note: nil))
+                    }
                 } label: {
                     Image(systemName: "plus.circle")
                 }
-                .buttonStyle(.plain)
             }
-            ForEach(dates.wrappedValue.indices, id: \.self) { idx in
+            ForEach(rules.wrappedValue.indices, id: \.self) { idx in
                 HStack {
-                    DatePicker("", selection: Binding(
-                        get: { dates.wrappedValue[idx] },
-                        set: { dates.wrappedValue[idx] = $0 }
-                    ), displayedComponents: .date)
-                    .labelsHidden()
+                    switch rules.wrappedValue[idx].rule {
+                    case .date(let date):
+                        DatePicker("", selection: Binding(
+                            get: { date },
+                            set: { newDate in
+                                rules.wrappedValue[idx].rule = .date(newDate)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                    case .range(let start, let end):
+                        DatePicker("", selection: Binding(
+                            get: { start },
+                            set: { newStart in
+                                rules.wrappedValue[idx].rule = .range(start: newStart, end: end)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                        Text("〜")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        DatePicker("", selection: Binding(
+                            get: { end },
+                            set: { newEnd in
+                                rules.wrappedValue[idx].rule = .range(start: start, end: newEnd)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                    }
                     Button(role: .destructive) {
-                        dates.wrappedValue.remove(at: idx)
+                        rules.wrappedValue.remove(at: idx)
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -640,6 +676,46 @@ struct ExhibitionEditView: View {
                 }
             }
         }
+        .environment(\.locale, Locale(identifier: "ja_JP"))
+        .environment(\.calendar, Calendar(identifier: .gregorian))
+    }
+
+    private func dateOnlyRuleEditor(title: String, rules: Binding<[DateRule]>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title).font(.subheadline)
+                Spacer()
+                Button {
+                    rules.wrappedValue.append(DateRule(rule: .date(Date()), note: nil))
+                } label: {
+                    Image(systemName: "plus.circle")
+                }
+            }
+            ForEach(rules.wrappedValue.indices, id: \.self) { idx in
+                HStack {
+                    DatePicker("", selection: Binding(
+                        get: {
+                            if case .date(let date) = rules.wrappedValue[idx].rule {
+                                return date
+                            }
+                            return Date()
+                        },
+                        set: { newDate in
+                            rules.wrappedValue[idx].rule = .date(newDate)
+                        }
+                    ), displayedComponents: .date)
+                    .labelsHidden()
+                    Button(role: .destructive) {
+                        rules.wrappedValue.remove(at: idx)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .environment(\.locale, Locale(identifier: "ja_JP"))
+        .environment(\.calendar, Calendar(identifier: .gregorian))
     }
 
     private var specialOpeningsEditor: some View {

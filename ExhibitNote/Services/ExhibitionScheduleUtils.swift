@@ -59,11 +59,11 @@ enum ExhibitionScheduleUtils {
                          lastEntryTime: special.lastEntryTime)
         }
         
-        if exhibition.scheduleClosedDates.contains(where: { isSameDay($0, day) }) {
+        if matchesDateRule(exhibition.scheduleClosedDateRules, day, cal) {
             return .closed
         }
-        
-        if exhibition.scheduleOpenDates.contains(where: { isSameDay($0, day) }) {
+
+        if matchesDateRule(exhibition.scheduleOpenDateRules, day, cal) {
             return .open(openTime: exhibition.scheduleOpenTime ?? "未設定",
                          closeTime: exhibition.scheduleCloseTime ?? "未設定",
                          lastEntryTime: exhibition.scheduleLastEntryTime)
@@ -177,6 +177,31 @@ enum ExhibitionScheduleUtils {
             else { return false }
             return w.calendarValue == weekday
         })
+    }
+
+    private static func matchesDateRule(
+        _ rules: [DateRuleRecord],
+        _ day: Date,
+        _ cal: Calendar
+    ) -> Bool {
+        rules.contains { rule in
+            switch rule.ruleType {
+            case .date:
+                guard let dateString = rule.date,
+                      let date = parseYMD(dateString)
+                else { return false }
+                return cal.isDate(date, inSameDayAs: day)
+            case .range:
+                guard let startText = rule.startDate,
+                      let endText = rule.endDate,
+                      let start = parseYMD(startText),
+                      let end = parseYMD(endText)
+                else { return false }
+                let startDay = cal.startOfDay(for: start)
+                let endDay = cal.startOfDay(for: end)
+                return day >= startDay && day <= endDay
+            }
+        }
     }
 
     private static func parseYMD(_ text: String) -> Date? {

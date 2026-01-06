@@ -26,7 +26,7 @@ struct ScheduleExtraction {
     let lastEntryTime: String?
     let closedWeekdays: [Weekday]
     let holidayHandling: HolidayHandling?
-    let closedDates: [Date]
-    let openDates: [Date]
+    let closedDateRules: [DateRule]
+    let openDateRules: [DateRule]
     let specialOpenings: [SpecialOpening]
 }

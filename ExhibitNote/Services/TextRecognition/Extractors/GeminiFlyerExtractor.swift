@@ -82,10 +82,14 @@ enum GeminiFlyerExtractor {
             .compactMap { Weekday(rawValue: $0.lowercased()) }
         let holidayHandling = parseHolidayHandling(regular.holidayHandling) ?? .none
 
-        var closedDates = (payload.exceptions?.closedDates ?? [])
+        var closedDateRules = parseDateRules(payload.exceptions?.closedRules, allowRange: true)
+        var openDateRules = parseDateRules(payload.exceptions?.openRules, allowRange: false)
+        let legacyClosedDates = (payload.exceptions?.closedDates ?? [])
             .compactMap { ISODateParser.parseISODate($0) }
-        var openDates = (payload.exceptions?.openDates ?? [])
+        let legacyOpenDates = (payload.exceptions?.openDates ?? [])
             .compactMap { ISODateParser.parseISODate($0) }
+        closedDateRules.append(contentsOf: legacyClosedDates.map { DateRule(rule: .date($0), note: nil) })
+        openDateRules.append(contentsOf: legacyOpenDates.map { DateRule(rule: .date($0), note: nil) })
         let specialOpenings = (payload.exceptions?.specialOpenings ?? [])
             .compactMap { entry -> SpecialOpening? in
                 let openTime = entry.openTime?.trimmed ?? ""
@@ -128,14 +132,14 @@ enum GeminiFlyerExtractor {
                           let date = ISODateParser.parseISODate(dateStr)
                     else { return nil }
 
-                    if openTime.isEmpty || closeTime.isEmpty {
-                        if containsOpenKeyword(note) {
-                            openDates.append(date)
-                        } else if containsClosedKeyword(note) {
-                            closedDates.append(date)
-                        }
-                        return nil
+                if openTime.isEmpty || closeTime.isEmpty {
+                    if containsOpenKeyword(note) {
+                        openDateRules.append(DateRule(rule: .date(date), note: entry.note))
+                    } else if containsClosedKeyword(note) {
+                        closedDateRules.append(DateRule(rule: .date(date), note: entry.note))
                     }
+                    return nil
+                }
 
                     return SpecialOpening(
                         rule: .date(date),
@@ -155,14 +159,14 @@ enum GeminiFlyerExtractor {
            lastEntryTime == nil,
            closedWeekdays.isEmpty,
            holidayHandling == nil,
-           closedDates.isEmpty,
-           openDates.isEmpty,
+           closedDateRules.isEmpty,
+           openDateRules.isEmpty,
            specialOpenings.isEmpty {
             return nil
         }
 
-        let uniqClosed = uniqueDates(closedDates)
-        let uniqOpen = uniqueDates(openDates)
+        let uniqClosed = uniqueDateRules(closedDateRules)
+        let uniqOpen = uniqueDateRules(openDateRules)
 
         return ScheduleExtraction(
             openTime: openTime,
@@ -170,10 +174,49 @@ enum GeminiFlyerExtractor {
             lastEntryTime: lastEntryTime,
             closedWeekdays: closedWeekdays,
             holidayHandling: holidayHandling,
-            closedDates: uniqClosed,
-            openDates: uniqOpen,
+            closedDateRules: uniqClosed,
+            openDateRules: uniqOpen,
             specialOpenings: specialOpenings
         )
+    }
+
+    private static func parseDateRules(
+        _ rules: [GeminiDateRule]?,
+        allowRange: Bool
+    ) -> [DateRule] {
+        guard let rules else { return [] }
+        return rules.compactMap { rule in
+            let ruleType = rule.ruleType?.trimmed.lowercased()
+            if allowRange, ruleType == "range",
+               let startStr = rule.startDate?.trimmed,
+               let endStr = rule.endDate?.trimmed,
+               let start = ISODateParser.parseISODate(startStr),
+               let end = ISODateParser.parseISODate(endStr) {
+                return DateRule(rule: .range(start: start, end: end), note: rule.note)
+            }
+            if ruleType == "date" || ruleType == nil,
+               let dateStr = rule.date?.trimmed,
+               let date = ISODateParser.parseISODate(dateStr) {
+                return DateRule(rule: .date(date), note: rule.note)
+            }
+            return nil
+        }
+    }
+
+    private static func uniqueDateRules(_ rules: [DateRule]) -> [DateRule] {
+        var seen: Set<String> = []
+        return rules.filter { rule in
+            let key: String
+            switch rule.rule {
+            case .date(let date):
+                key = "date:\(ScheduleDateKey.format(date))"
+            case .range(let start, let end):
+                key = "range:\(ScheduleDateKey.format(start))-\(ScheduleDateKey.format(end))"
+            }
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
     }
 
     private static func parseHolidayHandling(_ value: String?) -> HolidayHandling? {
@@ -225,19 +268,18 @@ enum GeminiFlyerExtractor {
         return keywords.contains { text.contains($0) }
     }
 
-    private static func uniqueDates(_ dates: [Date]) -> [Date] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
-        formatter.dateFormat = "yyyy-MM-dd"
-        var seen = Set<String>()
-        var result: [Date] = []
-        for date in dates {
-            let key = formatter.string(from: date)
-            if seen.insert(key).inserted {
-                result.append(date)
-            }
+    private enum ScheduleDateKey {
+        static let formatter: DateFormatter = {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter
+        }()
+
+        static func format(_ date: Date) -> String {
+            formatter.string(from: date)
         }
-        return result
     }
+
 }

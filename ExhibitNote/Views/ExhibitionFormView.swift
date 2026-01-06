@@ -71,8 +71,8 @@ struct ExhibitionFormView: View {
     @State private var scheduleLastEntryTime: String? = nil
     @State private var scheduleClosedWeekdays: [Weekday] = []
     @State private var scheduleHolidayHandling: HolidayHandling? = nil
-    @State private var scheduleClosedDates: [Date] = []
-    @State private var scheduleOpenDates: [Date] = []
+    @State private var scheduleClosedDateRules: [DateRule] = []
+    @State private var scheduleOpenDateRules: [DateRule] = []
     @State private var scheduleSpecialOpenings: [SpecialOpening] = []
     @State private var editingSpecialOpeningIndex: Int? = nil
     @State private var showSpecialOpeningEditor = false
@@ -212,8 +212,11 @@ struct ExhibitionFormView: View {
                         scheduleLastEntryTime = schedule.lastEntryTime
                         scheduleClosedWeekdays = schedule.closedWeekdays
                         scheduleHolidayHandling = schedule.holidayHandling
-                        scheduleClosedDates = schedule.closedDates
-                        scheduleOpenDates = schedule.openDates
+                        scheduleClosedDateRules = schedule.closedDateRules
+                        scheduleOpenDateRules = schedule.openDateRules.filter { rule in
+                            if case .date = rule.rule { return true }
+                            return false
+                        }
                         scheduleSpecialOpenings = schedule.specialOpenings
                     } else {
                         scheduleOpenTime = nil
@@ -221,8 +224,8 @@ struct ExhibitionFormView: View {
                         scheduleLastEntryTime = nil
                         scheduleClosedWeekdays = []
                         scheduleHolidayHandling = nil
-                        scheduleClosedDates = []
-                        scheduleOpenDates = []
+                        scheduleClosedDateRules = []
+                        scheduleOpenDateRules = []
                         scheduleSpecialOpenings = []
                     }
                     if let fees = result.admissionFees, !fees.isEmpty {
@@ -291,8 +294,8 @@ struct ExhibitionFormView: View {
         ex.scheduleLastEntryTime = scheduleLastEntryTime
         ex.scheduleClosedWeekdays = scheduleClosedWeekdays.map { $0.rawValue }
         ex.scheduleHolidayHandling = scheduleHolidayHandling.map { holidayHandlingRaw($0) }
-        ex.scheduleClosedDates = scheduleClosedDates
-        ex.scheduleOpenDates = scheduleOpenDates
+        ex.scheduleClosedDateRules = scheduleClosedDateRules.map { $0.toRecord() }
+        ex.scheduleOpenDateRules = scheduleOpenDateRules.map { $0.toRecord() }
         ex.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
         ex.admissionFeeRules = admissionFees
         ex.reservationRequired = reservationRequired
@@ -333,8 +336,8 @@ struct ExhibitionFormView: View {
         scheduleLastEntryTime != nil ||
         !scheduleClosedWeekdays.isEmpty ||
         scheduleHolidayHandling != nil ||
-        !scheduleClosedDates.isEmpty ||
-        !scheduleOpenDates.isEmpty ||
+        !scheduleClosedDateRules.isEmpty ||
+        !scheduleOpenDateRules.isEmpty ||
         !scheduleSpecialOpenings.isEmpty
     }
     
@@ -524,64 +527,101 @@ struct ExhibitionFormView: View {
             HStack {
                 Text("特別休館日")
                 Spacer()
-                Button {
-                    scheduleClosedDates.append(Date())
+                Menu {
+                    Button("単日") {
+                        scheduleClosedDateRules.append(DateRule(rule: .date(Date()), note: nil))
+                    }
+                    Button("期間") {
+                        let start = Date()
+                        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+                        scheduleClosedDateRules.append(DateRule(rule: .range(start: start, end: end), note: nil))
+                    }
                 } label: {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(.blue)
                 }
-                .buttonStyle(.plain)
             }
-            ForEach(scheduleClosedDates.indices, id: \.self) { idx in
+            ForEach(scheduleClosedDateRules.indices, id: \.self) { idx in
                 HStack {
                     Spacer()
-                    DatePicker("", selection: Binding(
-                        get: { scheduleClosedDates[idx] },
-                        set: { scheduleClosedDates[idx] = $0 }
-                    ), displayedComponents: .date)
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "ja_JP"))
-                    .environment(\.calendar, Calendar(identifier: .gregorian))
+                    switch scheduleClosedDateRules[idx].rule {
+                    case .date(let date):
+                        DatePicker("", selection: Binding(
+                            get: { date },
+                            set: { newDate in
+                                scheduleClosedDateRules[idx].rule = .date(newDate)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                    case .range(let start, let end):
+                        DatePicker("", selection: Binding(
+                            get: { start },
+                            set: { newStart in
+                                scheduleClosedDateRules[idx].rule = .range(start: newStart, end: end)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                        Text("〜")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        DatePicker("", selection: Binding(
+                            get: { end },
+                            set: { newEnd in
+                                scheduleClosedDateRules[idx].rule = .range(start: start, end: newEnd)
+                            }
+                        ), displayedComponents: .date)
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                    }
                     Button {
-                        scheduleClosedDates.remove(at: idx)
+                        scheduleClosedDateRules.remove(at: idx)
                     } label: {
                         Image(systemName: "minus.circle")
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
                 }
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .environment(\.calendar, Calendar(identifier: .gregorian))
             }
             HStack {
                 Text("特別開館日")
                 Spacer()
                 Button {
-                    scheduleOpenDates.append(Date())
+                    scheduleOpenDateRules.append(DateRule(rule: .date(Date()), note: nil))
                 } label: {
                     Image(systemName: "plus.circle")
                         .foregroundStyle(.blue)
                 }
-                .buttonStyle(.plain)
             }
-            ForEach(scheduleOpenDates.indices, id: \.self) { idx in
+            ForEach(scheduleOpenDateRules.indices, id: \.self) { idx in
                 HStack {
                     Spacer()
                     DatePicker("", selection: Binding(
-                        get: { scheduleOpenDates[idx] },
-                        set: { scheduleOpenDates[idx] = $0 }
+                        get: {
+                            if case .date(let date) = scheduleOpenDateRules[idx].rule {
+                                return date
+                            }
+                            return Date()
+                        },
+                        set: { newDate in
+                            scheduleOpenDateRules[idx].rule = .date(newDate)
+                        }
                     ), displayedComponents: .date)
                     .labelsHidden()
                     .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "ja_JP"))
-                    .environment(\.calendar, Calendar(identifier: .gregorian))
                     Button {
-                        scheduleOpenDates.remove(at: idx)
+                        scheduleOpenDateRules.remove(at: idx)
                     } label: {
                         Image(systemName: "minus.circle")
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(.plain)
                 }
+                .environment(\.locale, Locale(identifier: "ja_JP"))
+                .environment(\.calendar, Calendar(identifier: .gregorian))
             }
             HStack {
                 Text("特別開館時間")

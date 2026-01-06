@@ -52,9 +52,25 @@ enum GeminiPrompts {
         "holiday_handling": "NONE" | "OPEN_ON_HOLIDAY" | "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
       },
 
-      "exceptions": {
-        "closed_dates": ["YYYY-MM-DD"],
-        "open_dates": ["YYYY-MM-DD"],
+    "exceptions": {
+        "closed_rules": [
+          {
+            "rule_type": "date" | "range",
+            "date": "YYYY-MM-DD" | null,
+            "start_date": "YYYY-MM-DD" | null,
+            "end_date": "YYYY-MM-DD" | null,
+            "note": string | null
+          }
+        ],
+        "open_rules": [
+          {
+            "rule_type": "date",
+            "date": "YYYY-MM-DD",
+            "start_date": null,
+            "end_date": null,
+            "note": string | null
+          }
+        ],
         "special_openings": [
           {
             "rule_type": "date" | "weekday" | "range",
@@ -118,8 +134,10 @@ enum GeminiPrompts {
 
     ### exceptions
     - Use ONLY when explicitly stated.
-    - closed_dates: specific dates when the exhibition is closed.
-    - open_dates: specific dates when the exhibition is open despite normal closure.
+    - closed_rules: specific dates or date ranges when the exhibition is closed.
+    - open_rules: specific single dates when the exhibition is open despite normal closure.
+      - Use ONLY rule_type = "date" and date = "YYYY-MM-DD".
+      - Do NOT output ranges for open_rules.
     - special_openings: only when opening hours differ from the regular schedule.
     - special_openings MUST include both open_time and close_time (full opening hours). If either is missing, do NOT output it.
     - For special_openings:
@@ -127,7 +145,7 @@ enum GeminiPrompts {
       - Single date: rule_type = "date", use "date" = "YYYY-MM-DD".
       - Weekday rule: rule_type = "weekday", use "date" = "EVERY_FRIDAY" etc.
       - Date range: rule_type = "range", use "start_date" and "end_date" for a continuous range; set "date" to null.
-    - If a specific date is listed as open/closed without hours, put it in open_dates/closed_dates (NOT special_openings).
+    - If a specific date is listed as open/closed without hours, put it in open_rules/closed_rules (NOT special_openings).
     - Do NOT include exhibition events (e.g., gallery talks, lectures, workshops) as special_openings.
     - Do NOT include closed weekdays or holiday rules inside special_openings.
     - If a line describes an event time (e.g., "展示解説 14:00") that is not opening hours, ignore it.

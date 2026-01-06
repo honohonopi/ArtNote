@@ -37,7 +37,17 @@ struct GeminiRegularSchedule: Decodable {
 struct GeminiExceptions: Decodable {
     let closedDates: [String]?
     let openDates: [String]?
+    let closedRules: [GeminiDateRule]?
+    let openRules: [GeminiDateRule]?
     let specialOpenings: [GeminiSpecialOpening]?
+}
+
+struct GeminiDateRule: Decodable {
+    let ruleType: String?
+    let date: String?
+    let startDate: String?
+    let endDate: String?
+    let note: String?
 }
 
 struct GeminiSpecialOpening: Decodable {
