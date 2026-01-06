@@ -377,6 +377,17 @@ struct ExhibitionFormView: View {
             return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
         }
     }
+
+    private func reservationStatusText(_ value: Bool?) -> String {
+        switch value {
+        case .some(true):
+            return "事前予約制"
+        case .some(false):
+            return "予約不要"
+        case .none:
+            return "記載なし"
+        }
+    }
     
     private func dateListText(_ dates: [Date]) -> String {
         let sorted = dates.sorted()
@@ -1003,14 +1014,18 @@ struct ExhibitionFormView: View {
                         Text("予約情報")
                             .foregroundStyle(.primary)
                         Spacer()
-                        if reservationRequired == true {
-                            Text("事前予約制")
-                        } else if reservationRequired == false {
-                            Text("予約不要")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text("未取得")
-                                .foregroundStyle(.secondary)
+                        Menu {
+                            Button("記載なし") { reservationRequired = nil }
+                            Button("予約不要") { reservationRequired = false }
+                            Button("事前予約制") { reservationRequired = true }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(reservationStatusText(reservationRequired))
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.down")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
                         }
                         if isAIAnalyzing {
                             ProgressView()

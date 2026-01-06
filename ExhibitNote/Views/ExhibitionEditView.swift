@@ -52,6 +52,7 @@ struct ExhibitionEditView: View {
     @State private var draftSpecialOpeningCloseTime: String? = "18:00"
     @State private var draftSpecialOpeningLastEntryTime: String? = nil
     @State private var isScheduleExpanded = false
+    @State private var reservationRequired: Bool? = nil
     private struct MapPayload: Identifiable { let id = UUID(); let query: String }
     private struct IdentCoord: Identifiable { let id = UUID(); let coord: CLLocationCoordinate2D }
     private enum SpecialOpeningInputMode: String, CaseIterable, Identifiable {
@@ -106,6 +107,7 @@ struct ExhibitionEditView: View {
         _scheduleSpecialOpenings = State(initialValue:
             exhibition.scheduleSpecialOpenings.compactMap { $0.toSpecialOpening() }
         )
+        _reservationRequired = State(initialValue: exhibition.reservationRequired)
         _isScheduleExpanded = State(initialValue: !exhibition.scheduleClosedWeekdays.isEmpty
                                      || exhibition.scheduleOpenTime != nil
                                      || exhibition.scheduleCloseTime != nil
@@ -149,6 +151,23 @@ struct ExhibitionEditView: View {
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
                         .environment(\.calendar, Calendar(identifier: .gregorian))
+                    HStack {
+                        Text("予約情報")
+                        Spacer()
+                        Menu {
+                            Button("記載なし") { reservationRequired = nil }
+                            Button("予約不要") { reservationRequired = false }
+                            Button("事前予約制") { reservationRequired = true }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(reservationStatusText(reservationRequired))
+                                    .foregroundStyle(.secondary)
+                                Image(systemName: "chevron.down")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                        }
+                    }
                 }
                 Section {
                     DisclosureGroup("開館情報", isExpanded: $isScheduleExpanded) {
@@ -230,6 +249,7 @@ struct ExhibitionEditView: View {
                         exhibition.scheduleClosedDateRules = scheduleClosedDateRules.map { $0.toRecord() }
                         exhibition.scheduleOpenDateRules = scheduleOpenDateRules.map { $0.toRecord() }
                         exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
+                        exhibition.reservationRequired = reservationRequired
                         if let c = tempCoordinate {
                             exhibition.setCoordinate(c)
                         } else {
@@ -619,6 +639,17 @@ struct ExhibitionEditView: View {
             return "OPEN_ON_HOLIDAY"
         case .openOnHolidayCloseNextWeekday:
             return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
+        }
+    }
+
+    private func reservationStatusText(_ value: Bool?) -> String {
+        switch value {
+        case .some(true):
+            return "事前予約制"
+        case .some(false):
+            return "予約不要"
+        case .none:
+            return "記載なし"
         }
     }
 

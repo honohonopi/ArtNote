@@ -178,7 +178,7 @@ struct ExhibitionDetailView: View {
                 }
             }
             
-            if !exhibition.admissionFeeRules.isEmpty || exhibition.reservationRequired == true {
+            if !exhibition.admissionFeeRules.isEmpty || exhibition.reservationRequired != nil {
                 Section {
                     let userCategory = UserTicketCategory(rawValue: userAdmissionCategoryRaw) ?? .adult
                     let resolved = exhibition.resolvedAdmissionFee(for: userCategory)
@@ -230,14 +230,12 @@ struct ExhibitionDetailView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
-                            if exhibition.reservationRequired == true {
-                                Text("事前予約制")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
-                            }
+                            Text(reservationStatusText(exhibition.reservationRequired))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: showAdmissionDetails)
@@ -442,6 +440,17 @@ struct ExhibitionDetailView: View {
             // Google Maps が無ければWebにフォールバック
             let webURL = URL(string: "https://maps.google.com/?q=\(name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
             UIApplication.shared.open(webURL)
+        }
+    }
+
+    private func reservationStatusText(_ value: Bool?) -> String {
+        switch value {
+        case .some(true):
+            return "事前予約制"
+        case .some(false):
+            return "予約不要"
+        case .none:
+            return "記載なし"
         }
     }
 }
