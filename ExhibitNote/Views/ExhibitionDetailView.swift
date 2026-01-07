@@ -8,345 +8,72 @@
 // 展覧会詳細
 import SwiftUI
 import SwiftData
-import MapKit
-import CoreLocation
 
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var showDeleteConfirm = false
-    @State private var showEdit = false
-    
-    @State private var pickedColor: Color = .blue
-    
+
+    @StateObject private var vm: ExhibitionDetailViewModel
     @Query private var notes: [ArtworkNote]
-    @State private var showQuick = false
-    @State private var showStartChoice = false
-    @State private var showCatalogImportSheet = false
-    
-    @State private var showPlanner = false
-    @State private var visitDate = Date()
-    @State private var showAddDone = false
-    
-    @State private var showMapChoice = false
-    @State private var ocrPickedImage: UIImage?
-    @State private var showAdmissionDetails = false
-    @State private var showScheduleDetails = false
-    @State private var showDetailSection = false
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
+        _vm = StateObject(wrappedValue: ExhibitionDetailViewModel(exhibition: exhibition))
         let exId = exhibition.id
         _notes = Query(filter: #Predicate<ArtworkNote> { n in n.exhibitionId == exId },
                        sort: [SortDescriptor(\.catalogIndex, order: .forward),
                               SortDescriptor(\.catalogNumber, order: .forward)])
     }
     
-    private func encoded(_ s: String) -> String {
-        s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
-    }
-
-    // Appleマップ：住所で開く（経路）
-    private func openInAppleMaps(address: String) {
-        // 経路指定（出発地は現在地）
-        let url = URL(string: "http://maps.apple.com/?daddr=\(encoded(address))")!
-        UIApplication.shared.open(url)
-    }
-
-    // Googleマップ：住所で経路案内（アプリ→無ければWeb）
-    private func openInGoogleMaps(address: String) {
-        let scheme = "comgooglemaps://?daddr=\(encoded(address))&directionsmode=driving"
-        if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
-            UIApplication.shared.open(url)
-        } else {
-            // Web フォールバック（Google公式の Directions URL）
-            let web = "https://www.google.com/maps/dir/?api=1&destination=\(encoded(address))"
-            UIApplication.shared.open(URL(string: web)!)
-        }
-    }
-    
     var body: some View {
         List {
-            Section {
-                Button {
-                    if exhibition.catalogImported {
-                        showQuick = true
-                    } else {
-                        showStartChoice = true
-                    }
-                } label: {
-                    Label("鑑賞モードを開始", systemImage: "square.and.pencil")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .foregroundColor(.white)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            }
-            Section {
-                Text(exhibition.title)
-                    .font(.title2).bold()
-                    .padding(.bottom, 2)
-                // 会場＋地図アイコン（ここから Apple / Google を選べる）
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(exhibition.venue)
-                        .font(.subheadline)
-                    
-                    if (exhibition.address?.isEmpty == false) || (exhibition.coordinate != nil) {
-                        Button {
-                            showMapChoice = true
-                        } label: {
-                            Image(systemName: "mappin.circle")
-                                .imageScale(.medium)
-                                .foregroundStyle(.blue)   // ← 目に入る青
-                                .accessibilityLabel("地図アプリで開く")
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        // 座標未設定の見せ方（任意）
-                        Image(systemName: "mappin.slash.circle")
-                            .imageScale(.medium)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Text("\(exhibition.startDate.ymdString) 〜 \(exhibition.endDate.ymdString)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-            } header: {
-                Text("概要")
-            }
-            Section {
-                if showDetailSection {
-                    let hasAdmissionInfo = !exhibition.admissionFeeRules.isEmpty || exhibition.reservationRequired != nil
-                    let userCategory = UserTicketCategory(rawValue: userAdmissionCategoryRaw) ?? .adult
-                    let resolved = exhibition.resolvedAdmissionFee(for: userCategory)
-                    if hasAdmissionInfo {
-                        DisclosureGroup(isExpanded: $showAdmissionDetails) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                let displayFees = exhibition.admissionFeeRules.filter { fee in
-                                    fee.priceYen != nil ||
-                                    (fee.note?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
-                                }
-                                if displayFees.isEmpty {
-                                    Text("料金情報がありません")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    ForEach(displayFees) { fee in
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            Text(fee.rawLabel)
-                                            Spacer()
-                                            if fee.isFreeLike {
-                                                Text("無料")
-                                                    .foregroundStyle(.secondary)
-                                            } else if let price = fee.priceYen {
-                                                Text("\(price)円")
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                        if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                           !note.isEmpty {
-                                            Text(note)
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        } label: {
-                            HStack {
-                                Text("入館情報")
-                                Spacer()
-                                if let fee = resolved {
-                                    if fee.isFreeLike {
-                                        Text("無料")
-                                            .foregroundStyle(.secondary)
-                                    } else if let price = fee.priceYen {
-                                        Text("\(price)円")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                if exhibition.reservationRequired != nil {
-                                    Text(reservationStatusText(exhibition.reservationRequired))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
-                                }
-                            }
-                        }
-                        .animation(.easeInOut(duration: 0.2), value: showAdmissionDetails)
-                    } else {
-                        HStack {
-                            Text("入館情報")
-                            Spacer()
-                            Text("情報がありません")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if hasScheduleInfo {
-                        DisclosureGroup(isExpanded: $showScheduleDetails) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                if let timeText = scheduleTimeText {
-                                    infoRow(label: "開館時間", value: timeText)
-                                }
-                                if let lastEntry = exhibition.scheduleLastEntryTime,
-                                   !lastEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    infoRow(label: "最終入場", value: lastEntry)
-                                }
-                                if !scheduleClosedWeekdaysText.isEmpty {
-                                    infoRow(label: "休館曜日", value: scheduleClosedWeekdaysText)
-                                }
-                                if let holidayText = holidayHandlingText(exhibition.scheduleHolidayHandling) {
-                                    infoRow(label: "祝日対応", value: holidayText)
-                                }
-                                if !closedDateRules.isEmpty {
-                                    ruleListRow(title: "特別休館日", rules: closedDateRules)
-                                }
-                                if !openDateRules.isEmpty {
-                                    ruleListRow(title: "特別開館日", rules: openDateRules)
-                                }
-                                if !specialOpenings.isEmpty {
-                                    specialOpeningsRow(title: "特別開館時間", openings: specialOpenings)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        } label: {
-                            HStack {
-                                Text("開館情報")
-                                Spacer()
-                            }
-                        }
-                        .animation(.easeInOut(duration: 0.2), value: showScheduleDetails)
-                    } else {
-                        HStack {
-                            Text("開館情報")
-                            Spacer()
-                            Text("情報がありません")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            } header: {
-                Button {
-                    showDetailSection.toggle()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: showDetailSection ? "chevron.down" : "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("詳細")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-
-            Section {
-                let filledNotes = notes.filter {
-                    !$0.memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                }
-                if filledNotes.isEmpty {
-                    Text("鑑賞モードからメモを追加しましょう！")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            ExhibitionDetailStartSectionView {
+                if exhibition.catalogImported {
+                    vm.showQuick = true
                 } else {
-                    ForEach(filledNotes) { n in
-                    VStack(alignment: .leading, spacing: 6) {
-                        // 目録番号 + 日付行
-                        HStack {
-                            Text("#\(n.resolvedDisplayNumber)")
-                                .font(.caption)
-                                .monospaced()
-                            Spacer()
-                            Text(n.updatedAt.ymdString)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        // 作品タイトル
-                        if let t = n.artworkTitle, !t.isEmpty {
-                            Text(t)
-                                .font(.headline)
-                        }
-
-                        // 作者 / 制作年 / 技法 / 所蔵 をまとめてサブタイトルに
-                        let subtitle = [
-                            n.artist,
-                            n.yearText,
-                            n.material,
-                            n.collection
-                        ]
-                        .compactMap { $0?.isEmpty == false ? $0 : nil }
-                        .joined(separator: " / ")
-
-                        if !subtitle.isEmpty {
-                            Text(subtitle)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        // 自分のメモ（空文字は表示しない）
-                        let trimmedMemo = n.memo.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmedMemo.isEmpty {
-                            Text(trimmedMemo)
-                                .font(.body)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    }
-                }
-            } header: {
-                HStack {
-                    Text("メモ")
+                    vm.showStartChoice = true
                 }
             }
+            ExhibitionDetailSummarySectionView(exhibition: exhibition) {
+                vm.showMapChoice = true
+            }
+            ExhibitionDetailDetailsSectionView(vm: vm, userAdmissionCategoryRaw: userAdmissionCategoryRaw)
+            ExhibitionDetailMemoSectionView(notes: notes)
         }
         
         .navigationTitle("詳細")
-        .confirmationDialog("目録を読み込んで開始しますか？", isPresented: $showStartChoice) {
+        .confirmationDialog("目録を読み込んで開始しますか？", isPresented: $vm.showStartChoice) {
             Button("目録を読み込んで開始する") {
-                showCatalogImportSheet = true
+                vm.showCatalogImportSheet = true
             }
             Button("後で読み込む") {
-                showQuick = true
+                vm.showQuick = true
             }
         }
-        .sheet(isPresented: $showQuick) {
+        .sheet(isPresented: $vm.showQuick) {
             CardPagingNoteView(exhibition: exhibition)
                 .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showCatalogImportSheet) {
+        .sheet(isPresented: $vm.showCatalogImportSheet) {
             CatalogImportStartView(exhibition: exhibition) {
-                showCatalogImportSheet = false
-                showQuick = true
+                vm.showCatalogImportSheet = false
+                vm.showQuick = true
             }
             .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showPlanner) {
+        .sheet(isPresented: $vm.showPlanner) {
             NavigationStack {
                 Form {
                     Section("訪問日時") {
-                        DatePicker("日付", selection: $visitDate,
+                        DatePicker("日付", selection: $vm.visitDate,
                                    in: exhibition.startDate...exhibition.endDate,
                                    displayedComponents: .date)
                             .datePickerStyle(.compact)
                             .environment(\.locale, Locale(identifier: "ja_JP"))
                             .environment(\.calendar, Calendar(identifier: .gregorian))
-                        DatePicker("開始時刻", selection: $visitDate,
+                        DatePicker("開始時刻", selection: $vm.visitDate,
                                    displayedComponents: .hourAndMinute)
                     }
                     Section {
@@ -356,7 +83,7 @@ struct ExhibitionDetailView: View {
                 }
                 .navigationTitle("予定に追加")
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { showPlanner = false } }
+                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { vm.showPlanner = false } }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("追加") {
                             Task {
@@ -366,11 +93,11 @@ struct ExhibitionDetailView: View {
                                 do {
                                     try EventKitService.shared.addVisitEvent(
                                         exhibition: exhibition,
-                                        visitDate: visitDate,
+                                        visitDate: vm.visitDate,
                                         durationHours: 2
                                     )
-                                    showPlanner = false
-                                    showAddDone = true
+                                    vm.showPlanner = false
+                                    vm.showAddDone = true
                                 } catch {
                                 }
                             }
@@ -379,10 +106,10 @@ struct ExhibitionDetailView: View {
                 }
             }
         }
-        .alert("カレンダーに追加しました", isPresented: $showAddDone) {
+        .alert("カレンダーに追加しました", isPresented: $vm.showAddDone) {
             Button("OK", role: .cancel) { }
         }
-        .sheet(isPresented: $showEdit) {
+        .sheet(isPresented: $vm.showEdit) {
             ExhibitionEditView(exhibition: exhibition)
                 .presentationDetents([.large]) // 好みで .medium も可
         }
@@ -395,14 +122,14 @@ struct ExhibitionDetailView: View {
                     }
                     // カレンダーに追加
                     Button {
-                        visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
-                        showPlanner = true
+                        vm.visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
+                        vm.showPlanner = true
                     } label: {
                         Label("カレンダーに追加", systemImage: "calendar.badge.plus")
                     }
                     // 編集
                     Button {
-                        showEdit = true
+                        vm.showEdit = true
                     } label: {
                         Label("編集", systemImage: "pencil")
                     }
@@ -416,7 +143,7 @@ struct ExhibitionDetailView: View {
                     Divider()
                     // 削除
                     Button(role: .destructive) {
-                        showDeleteConfirm = true
+                        vm.showDeleteConfirm = true
                     } label: {
                         Label("削除", systemImage: "trash")
                     }
@@ -425,16 +152,9 @@ struct ExhibitionDetailView: View {
                 }
             }
         }
-        .onAppear {
-            if let c = exhibition.uiColor {
-                pickedColor = Color(c)
-            } else {
-                pickedColor = .blue
-            }
-        }
         .confirmationDialog(
             "本当に削除しますか？",
-            isPresented: $showDeleteConfirm,
+            isPresented: $vm.showDeleteConfirm,
             titleVisibility: .visible
         ) {
             Button("削除", role: .destructive) { deleteExhibition() }
@@ -442,30 +162,30 @@ struct ExhibitionDetailView: View {
         }
         .confirmationDialog(
             "地図で開く",
-            isPresented: $showMapChoice,
+            isPresented: $vm.showMapChoice,
             titleVisibility: .visible
         ) {
             if let addr = exhibition.address, !addr.isEmpty {
                 Button {
-                    openInAppleMaps(address: addr)
+                    vm.openInAppleMaps(address: addr)
                 } label: { Text("Appleマップで開く") }
                 Button {
-                    openInGoogleMaps(address: addr)
+                    vm.openInGoogleMaps(address: addr)
                 } label: { Text("Googleマップで経路案内") }
             } else if let c = exhibition.coordinate {
                 Button {
-                    openInAppleMaps(c, name: exhibition.title)
+                    vm.openInAppleMaps(c, name: exhibition.title)
                 } label: { Text("Appleマップで開く") }
                 Button {
-                    openInGoogleMaps(c, name: exhibition.title)
+                    vm.openInGoogleMaps(c, name: exhibition.title)
                 } label: { Text("Googleマップで経路案内") }
             } else {
                 // 最後の砦：会場名で検索 または 位置情報未設定の案内
                 Button {
-                    openInAppleMaps(address: exhibition.venue)
+                    vm.openInAppleMaps(address: exhibition.venue)
                 } label: { Text("Appleマップで開く") }
                 Button {
-                    openInGoogleMaps(address: exhibition.venue)
+                    vm.openInGoogleMaps(address: exhibition.venue)
                 } label: { Text("Googleマップで経路案内") }
                 Button("位置情報が未設定です", role: .cancel) {}
             }
@@ -494,184 +214,6 @@ struct ExhibitionDetailView: View {
         }
     }
     
-    // Appleマップ（標準）で開く
-    private func openInAppleMaps(_ coord: CLLocationCoordinate2D, name: String) {
-        let placemark = MKPlacemark(coordinate: coord)
-        let mapItem = MKMapItem(placemark: placemark)
-        mapItem.name = name
-        mapItem.openInMaps(launchOptions: [
-            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
-        ])
-    }
-    
-    // Googleマップで経路案内
-    private func openInGoogleMaps(_ coord: CLLocationCoordinate2D, name: String) {
-        let urlStr = "comgooglemaps://?daddr=\(coord.latitude),\(coord.longitude)&directionsmode=driving"
-        if let url = URL(string: urlStr), UIApplication.shared.canOpenURL(url) {
-            UIApplication.shared.open(url)
-        } else {
-            // Google Maps が無ければWebにフォールバック
-            let webURL = URL(string: "https://maps.google.com/?q=\(name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")!
-            UIApplication.shared.open(webURL)
-        }
-    }
-
-    private func reservationStatusText(_ value: Bool?) -> String {
-        switch value {
-        case .some(true):
-            return "事前予約制"
-        case .some(false):
-            return "予約不要"
-        case .none:
-            return "記載なし"
-        }
-    }
-
-    private var hasScheduleInfo: Bool {
-        if exhibition.scheduleOpenTime != nil || exhibition.scheduleCloseTime != nil || exhibition.scheduleLastEntryTime != nil {
-            return true
-        }
-        if !exhibition.scheduleClosedWeekdays.isEmpty {
-            return true
-        }
-        if exhibition.scheduleHolidayHandling != nil {
-            return true
-        }
-        if !closedDateRules.isEmpty || !openDateRules.isEmpty || !specialOpenings.isEmpty {
-            return true
-        }
-        return false
-    }
-
-    private var scheduleTimeText: String? {
-        let open = exhibition.scheduleOpenTime?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let close = exhibition.scheduleCloseTime?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let open, !open.isEmpty, let close, !close.isEmpty {
-            return "\(open)〜\(close)"
-        }
-        if let open, !open.isEmpty {
-            return "\(open)〜"
-        }
-        if let close, !close.isEmpty {
-            return "〜\(close)"
-        }
-        return nil
-    }
-
-    private var scheduleClosedWeekdaysText: String {
-        let map: [String: String] = [
-            "monday": "月",
-            "tuesday": "火",
-            "wednesday": "水",
-            "thursday": "木",
-            "friday": "金",
-            "saturday": "土",
-            "sunday": "日"
-        ]
-        let labels = exhibition.scheduleClosedWeekdays.compactMap { map[$0.lowercased()] }
-        return labels.joined(separator: "・")
-    }
-
-    private var closedDateRules: [DateRule] {
-        exhibition.scheduleClosedDateRules.compactMap { $0.toDateRule() }
-    }
-
-    private var openDateRules: [DateRule] {
-        exhibition.scheduleOpenDateRules.compactMap { $0.toDateRule() }
-    }
-
-    private var specialOpenings: [SpecialOpening] {
-        exhibition.scheduleSpecialOpenings.compactMap { $0.toSpecialOpening() }
-    }
-
-    private func holidayHandlingText(_ raw: String?) -> String? {
-        guard let raw, !raw.isEmpty else { return nil }
-        switch raw.uppercased() {
-        case "NONE":
-            return "祝日対応なし"
-        case "OPEN_ON_HOLIDAY":
-            return "祝日は開館"
-        case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY":
-            return "祝日開館・翌平日休館"
-        default:
-            return nil
-        }
-    }
-
-    private func infoRow(label: String, value: String) -> some View {
-        HStack {
-            Text(label)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-        }
-    }
-
-    private func ruleListRow(title: String, rules: [DateRule]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .foregroundStyle(.secondary)
-            ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
-                Text(dateRuleText(rule))
-            }
-        }
-    }
-
-    private func dateRuleText(_ rule: DateRule) -> String {
-        let base: String
-        switch rule.rule {
-        case .date(let date):
-            base = date.ymdString
-        case .range(let start, let end):
-            base = "\(start.ymdString)〜\(end.ymdString)"
-        }
-        if let note = rule.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
-            return "\(base) \(note)"
-        }
-        return base
-    }
-
-    private func specialOpeningsRow(title: String, openings: [SpecialOpening]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .foregroundStyle(.secondary)
-            ForEach(Array(openings.enumerated()), id: \.offset) { _, opening in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(specialOpeningText(opening))
-                    if let last = opening.lastEntryTime, !last.isEmpty {
-                        Text("最終入場 \(last)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-
-    private func specialOpeningText(_ opening: SpecialOpening) -> String {
-        let label: String
-        switch opening.rule {
-        case .date(let date):
-            label = date.ymdString
-        case .weekday(let weekday):
-            label = weeklyLabel(weekday)
-        case .range(let start, let end):
-            label = "\(start.ymdString)〜\(end.ymdString)"
-        }
-        return "\(label) \(opening.openTime)〜\(opening.closeTime)"
-    }
-
-    private func weeklyLabel(_ weekday: Weekday) -> String {
-        switch weekday {
-        case .monday: return "毎週月曜"
-        case .tuesday: return "毎週火曜"
-        case .wednesday: return "毎週水曜"
-        case .thursday: return "毎週木曜"
-        case .friday: return "毎週金曜"
-        case .saturday: return "毎週土曜"
-        case .sunday: return "毎週日曜"
-        }
-    }
 }
 
 private struct CatalogImportStartView: View {
