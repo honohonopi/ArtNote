@@ -30,9 +30,20 @@ struct ExhibitionDetailSummarySectionView: View {
 
     var body: some View {
         Section {
-            Text(exhibition.title)
-                .font(.title2).bold()
-                .padding(.bottom, 2)
+            HStack(spacing: 8) {
+                Text(exhibition.title)
+                    .font(.title2).bold()
+                if let url = exhibition.url {
+                    Link(destination: url) {
+                        Image(systemName: "link")
+                            .imageScale(.medium)
+                            .foregroundStyle(.blue)
+                            .accessibilityLabel("公式サイトを開く")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 2)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(exhibition.venue)
                     .font(.subheadline)
