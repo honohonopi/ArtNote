@@ -28,7 +28,7 @@ struct ExhibitionRowView: View {
 }
 
 struct MapPin: Identifiable {
-    let id = UUID()
+    let id: String
     let coordinate: CLLocationCoordinate2D
     let title: String
     let isHere: Bool
@@ -38,7 +38,7 @@ struct MapPin: Identifiable {
 struct NearbyMiniMapView: View {
     @Binding var region: MKCoordinateRegion
     let pins: [MapPin]
-    @Binding var selectedPinID: UUID?
+    @Binding var selectedPinID: String?
     
     var body: some View {
                 Map(
@@ -79,9 +79,12 @@ struct HomeSoonSectionView: View {
                 ContentUnavailableView("該当する展示はありません", systemImage: "calendar.circle")
             } else {
                 ForEach(Array(exhibitions.prefix(5))) { ex in
-                    NavigationLink(value: ex) {
+                    NavigationLink {
+                        ExhibitionDetailView(exhibition: ex)
+                    } label: {
                         ExhibitionRowView(ex: ex, distanceKm: nil)
                     }
+                    .id("soon-\(ex.id)")
                 }
             }
             
@@ -114,12 +117,13 @@ struct HomeNearbySectionView: View {
     
     let authorization: CLAuthorizationStatus
     let items: [(Exhibition, Double)]
+    let displayLimit: Int
     let pins: [MapPin]
     let requestLocation: () -> Void
     let onRadiusEditingChanged: (Bool) -> Void
     
-    @Binding var selectedPinID: UUID?          // ← Map の選択状態を受け取る
-    @State private var highlightedExID: PersistentIdentifier? = nil  // SwiftData の ID 型
+    @Binding var selectedPinID: String?          // ← Map の選択状態を受け取る
+    @Binding var highlightedExID: String?
     
     var body: some View {
         Section {
@@ -135,39 +139,23 @@ struct HomeNearbySectionView: View {
                 if items.isEmpty {
                     ContentUnavailableView("近くで開催中の展示はありません", systemImage: "mappin.and.ellipse")
                 } else {
-                    ScrollViewReader { proxy in
-                        ForEach(Array(items.prefix(5)), id: \.0.id) { ex, km in
-                            NavigationLink(value: ex) {
-                                ExhibitionRowView(ex: ex, distanceKm: km)
-                                    .padding(.vertical, 4)
-                            }
-                            .overlay(alignment: .leading) {
-                                if highlightedExID == ex.id {
-                                    Rectangle()
-                                        .fill(Color.red.opacity(0.5))
-                                        .frame(width: 4)
-                                        .transition(.opacity.combined(with: .move(edge: .leading)))
-                                }
-                            }
-                            .animation(.easeInOut(duration: 0.25), value: highlightedExID)
-                            .id(ex.id)
+                    ForEach(Array(items.prefix(displayLimit)), id: \.0.id) { ex, km in
+                        NavigationLink {
+                            ExhibitionDetailView(exhibition: ex)
+                        } label: {
+                            ExhibitionRowView(ex: ex, distanceKm: km)
+                                .padding(.vertical, 4)
                         }
-                        .onChange(of: selectedPinID) { _, newID in
-                            guard let pid = newID,
-                                  let pin = pins.first(where: { $0.id == pid }),
-                                  let ex = pin.exhibition
-                            else {
-                                highlightedExID = nil
-                                return
-                            }
-                            highlightedExID = ex.id
-                            // 少し遅延してスクロール（描画安定のため）
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                withAnimation(.easeInOut) {
-                                    proxy.scrollTo(ex.id, anchor: .center)
-                                }
+                        .overlay(alignment: .leading) {
+                            if highlightedExID == ex.id {
+                                Rectangle()
+                                    .fill(Color.red.opacity(0.5))
+                                    .frame(width: 4)
+                                    .transition(.opacity.combined(with: .move(edge: .leading)))
                             }
                         }
+                        .animation(.easeInOut(duration: 0.25), value: highlightedExID)
+                        .id("nearby-\(ex.id)")
                     }
                 }
             case .notDetermined:
@@ -255,7 +243,8 @@ struct HomeView: View {
     @State private var nearbyOngoingCache: [(Exhibition, Double)] = []
     @State private var isAdjustingRadius = false
     
-    @State private var selectedPinID: UUID? = nil
+    @State private var selectedPinID: String? = nil
+    @State private var highlightedExID: String? = nil
     @State private var showSettings = false
     
     @State private var mapRegion = MKCoordinateRegion(
@@ -293,15 +282,17 @@ struct HomeView: View {
         let limited = paired.filter { $0.1 <= nearbyRadiusKm }
         nearbyOngoingCache = limited.sorted { $0.1 < $1.1 }
     }
+
+    private var nearbyDisplayLimit: Int { 5 }
     
     private var nearbyPins: [MapPin] {
         var pins: [MapPin] = []
         if let here = loc.location?.coordinate {
-            pins.append(.init(coordinate: here, title: "現在地", isHere: true, exhibition: nil))
+            pins.append(.init(id: "here", coordinate: here, title: "現在地", isHere: true, exhibition: nil))
         }
-        for (ex, _) in nearbyOngoingCache.prefix(10) {
+        for (ex, _) in nearbyOngoingCache.prefix(nearbyDisplayLimit) {
             if let c = ex.coordinate {
-                pins.append(.init(coordinate: c, title: ex.title, isHere: false, exhibition: ex)) // ← ここで紐付け
+                pins.append(.init(id: ex.id, coordinate: c, title: ex.title, isHere: false, exhibition: ex)) // ← ここで紐付け
             }
         }
         return pins
@@ -316,10 +307,23 @@ struct HomeView: View {
         guard let c = loc.location?.coordinate else { return "nil" }
         return String(format: "%.5f,%.5f", c.latitude, c.longitude)
     }
+
+    private func exhibitionID(for pinID: String?) -> String? {
+        guard let pinID,
+              let pin = nearbyPins.first(where: { $0.id == pinID }),
+              let ex = pin.exhibition
+        else { return nil }
+        return ex.id
+    }
+
+    private func nearbyScrollID(for exhibitionID: String) -> String {
+        "nearby-\(exhibitionID)"
+    }
     
     var body: some View {
         NavigationStack {
-            List {
+            ScrollViewReader { proxy in
+                List {
                 HomeSoonSectionView(soonDays: $soonDays, exhibitions: soonExhibitions)
                 
                 HomeNearbySectionView(
@@ -327,6 +331,7 @@ struct HomeView: View {
                     mapRegion: $mapRegion,
                     authorization: loc.authorization,
                     items: nearbyOngoingCache,
+                    displayLimit: nearbyDisplayLimit,
                     pins: nearbyPins,
                     requestLocation: { loc.request() },
                     onRadiusEditingChanged: { isEditing in
@@ -337,47 +342,56 @@ struct HomeView: View {
                             recomputeNearby()
                         }
                     },
-                    selectedPinID: $selectedPinID
+                    selectedPinID: $selectedPinID,
+                    highlightedExID: $highlightedExID
                 )
-            }
-            .navigationTitle("ホーム")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                }
+                .navigationTitle("ホーム")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
                     }
                 }
-            }
-            .navigationDestination(for: Exhibition.self) { ex in
-                ExhibitionDetailView(exhibition: ex)
-            }
-            .task { try? await ReminderService.shared.requestAuthorization() }
-            // 近接半径が変わっても、ドラッグ中は重い更新をしない
-            .onChange(of: nearbyRadiusKm) { _ in
-                guard !isAdjustingRadius else { return }
-                mapRegion.span = spanForRadius
-                recomputeNearby()
-            }
-            .onAppear {
-                if loc.authorization == .notDetermined { loc.request() }
-                recomputeNearby()
-            }
-            .onChange(of: hereKeyString) { _ in
-                if let c = loc.location?.coordinate {
-                    mapRegion.center = c
+                .task { try? await ReminderService.shared.requestAuthorization() }
+                // 近接半径が変わっても、ドラッグ中は重い更新をしない
+                .onChange(of: nearbyRadiusKm) { _ in
+                    guard !isAdjustingRadius else { return }
                     mapRegion.span = spanForRadius
+                    recomputeNearby()
                 }
-                recomputeNearby()
-            }
-            // 件数だけ監視にして型推論を軽く
-            .onChange(of: allExhibitions.count) { _ in
-                recomputeNearby()
-            }
-            .sheet(isPresented: $showSettings) {
-                HomeSettingsView()
+                .onAppear {
+                    if loc.authorization == .notDetermined { loc.request() }
+                    recomputeNearby()
+                }
+                .onChange(of: hereKeyString) { _ in
+                    if let c = loc.location?.coordinate {
+                        mapRegion.center = c
+                        mapRegion.span = spanForRadius
+                    }
+                    recomputeNearby()
+                }
+                // 件数だけ監視にして型推論を軽く
+                .onChange(of: allExhibitions.count) { _ in
+                    recomputeNearby()
+                }
+                .onChange(of: selectedPinID) { _, newValue in
+                    let target = exhibitionID(for: newValue)
+                    highlightedExID = target
+                    guard let target else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        withAnimation(.easeInOut) {
+                            proxy.scrollTo(nearbyScrollID(for: target), anchor: .center)
+                        }
+                    }
+                }
+                .sheet(isPresented: $showSettings) {
+                    HomeSettingsView()
+                }
             }
         }
     }
