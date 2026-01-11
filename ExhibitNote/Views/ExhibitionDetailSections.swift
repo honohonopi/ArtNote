@@ -263,8 +263,18 @@ struct ExhibitionDetailMemoSectionView: View {
 
     var body: some View {
         Section {
-            let filledNotes = notes.filter {
-                !$0.memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let filledNotes = notes.filter { note in
+                let hasMemo = !note.memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                let hasArtworkInfo = [
+                    note.artworkTitle,
+                    note.artist,
+                    note.yearText,
+                    note.material,
+                    note.collection
+                ]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .contains { !$0.isEmpty }
+                return hasMemo || hasArtworkInfo
             }
             if filledNotes.isEmpty {
                 Text("鑑賞モードからメモを追加しましょう！")

@@ -31,7 +31,8 @@ struct ExhibitionDetailView: View {
         List {
             ExhibitionDetailStartSectionView {
                 if exhibition.catalogImported {
-                    vm.showQuick = true
+//                    vm.showQuick = true
+                    vm.showStartChoice = true
                 } else {
                     vm.showStartChoice = true
                 }
@@ -44,8 +45,8 @@ struct ExhibitionDetailView: View {
         }
         
         .navigationTitle("詳細")
-        .confirmationDialog("目録を読み込んで開始しますか？", isPresented: $vm.showStartChoice) {
-            Button("目録を読み込んで開始する") {
+        .confirmationDialog("作品リストを読み込んで開始しますか？", isPresented: $vm.showStartChoice) {
+            Button("作品リストを読み込んで開始する") {
                 vm.showCatalogImportSheet = true
             }
             Button("後で読み込む") {
@@ -178,8 +179,12 @@ struct ExhibitionDetailView: View {
 
 private struct CatalogImportStartView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     let exhibition: Exhibition
     let onStart: () -> Void
+    @State private var showPDFPicker = false
+    @State private var isImporting = false
+    @State private var importError: String?
     
     var body: some View {
         NavigationStack {
@@ -196,22 +201,46 @@ private struct CatalogImportStartView: View {
                         Label("カメラで撮る", systemImage: "camera.viewfinder")
                     }
                     Button {
-                        startImport()
+                        showPDFPicker = true
                     } label: {
                         Label("PDFを選ぶ", systemImage: "doc.richtext")
                     }
                 }
                 Section {
-                    Text("目録読み込みのAI処理は次のステップで実装します。")
+                    Text("PDFの作品リストを読み込んで作品情報をメモに反映します。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("目録を読み込む")
+            .navigationTitle("作品リストを読み込む")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }
                 }
+            }
+            .fileImporter(isPresented: $showPDFPicker, allowedContentTypes: [.pdf]) { result in
+                switch result {
+                case .success(let url):
+                    importPDF(from: url)
+                case .failure(let error):
+                    importError = error.localizedDescription
+                }
+            }
+            .overlay {
+                if isImporting {
+                    ProgressView("作品リストを読み込み中...")
+                        .padding()
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            .alert("読み込みに失敗しました", isPresented: Binding(get: {
+                importError != nil
+            }, set: { newValue in
+                if !newValue { importError = nil }
+            })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(importError ?? "")
             }
         }
     }
@@ -219,5 +248,44 @@ private struct CatalogImportStartView: View {
     private func startImport() {
         exhibition.catalogImported = true
         onStart()
+    }
+
+    private func importPDF(from url: URL) {
+        isImporting = true
+        Task { @MainActor in
+            do {
+                let result: CatalogImportResult
+                do {
+                    let geminiResult = try await CatalogGeminiImporter.importCatalog(
+                        from: url,
+                        exhibition: exhibition,
+                        context: context
+                    )
+                    result = CatalogImportResult(
+                        createdCount: geminiResult.createdCount,
+                        updatedCount: geminiResult.updatedCount,
+                        estimatedCount: geminiResult.estimatedCount
+                    )
+                } catch {
+                    result = try CatalogPDFImporter.importCatalog(
+                        from: url,
+                        exhibition: exhibition,
+                        context: context
+                    )
+                }
+                exhibition.catalogImported = true
+                if let count = result.estimatedCount, count > 0 {
+                    if exhibition.catalogTotalCount == nil || count > (exhibition.catalogTotalCount ?? 0) {
+                        exhibition.catalogTotalCount = count
+                    }
+                }
+                try context.save()
+                isImporting = false
+                onStart()
+            } catch {
+                isImporting = false
+                importError = error.localizedDescription
+            }
+        }
     }
 }

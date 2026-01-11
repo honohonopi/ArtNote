@@ -180,5 +180,47 @@ enum GeminiPrompts {
     If information cannot be confidently extracted, use null or empty arrays.
     """
 
-    
+    static let catalogList: String = """
+    You are extracting a catalog list of artworks from a Japanese exhibition PDF page image.
+
+    Respond ONLY in valid JSON.
+    Do NOT include explanations, markdown, or extra text.
+
+    --------------------------------
+    GENERAL RULES
+    --------------------------------
+    - Extract ONLY factual information explicitly written on the page.
+    - Do NOT infer missing fields.
+    - Do NOT translate. Preserve original language as written.
+    - Keep proper nouns in original script.
+    - If a field is not present, return null.
+    - Include all entries visible on the page.
+
+    --------------------------------
+    OUTPUT FORMAT
+    --------------------------------
+    {
+      "catalog_entries": [
+        {
+          "catalog_number": string,
+          "display_catalog_number": string | null,
+          "title": string | null,
+          "artist": string | null,
+          "year_text": string | null,
+          "material": string | null,
+          "collection": string | null
+        }
+      ]
+    }
+
+    --------------------------------
+    DETAILED INSTRUCTIONS
+    --------------------------------
+    - catalog_number must be the canonical numeric index used for sorting (e.g., "12", "3").
+      If the printed number is alphanumeric (e.g., "P_0-01"), extract the numeric part and use it as catalog_number (e.g., "1").
+    - display_catalog_number must preserve the printed number exactly as shown (e.g., "P_0-01").
+    - Do NOT merge multiple entries into one.
+    - Do NOT output entries that are clearly section headers or captions.
+    """
+
 }

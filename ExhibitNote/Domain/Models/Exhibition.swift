@@ -50,7 +50,7 @@ final class Exhibition {
     var admissionFeesData: Data?
     var reservationRequired: Bool?
     
-    var catalogImported: Bool = false // 目録インポート済みフラッグ
+    var catalogImported: Bool = false // 作品リストインポート済みフラッグ
     var noteCount: Int? // メモ総数
     var lastViewedNoteIndex: Int? // 最後に閲覧したメモインデックス
     

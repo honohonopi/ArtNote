@@ -585,8 +585,8 @@ struct CatalogSectionView: View {
     @Binding var catalogTotalCountStr: String
 
     var body: some View {
-        Section("目録") {
-            TextField("目録総数（例: 80）", text: $catalogTotalCountStr)
+        Section("作品リスト") {
+            TextField("作品総数（例: 80）", text: $catalogTotalCountStr)
                 .keyboardType(.numberPad)
         }
     }
