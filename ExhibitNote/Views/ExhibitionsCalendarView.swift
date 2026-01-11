@@ -73,10 +73,7 @@ struct ExhibitionsCalendarView: View {
                 if let date = vm.selectedDate {
                     let content = DayExhibitionsListView(
                         date: date,
-                        exhibitions: vm.exhibitions(on: date, from: exhibitions),
-                        onSelect: { ex in
-                            vm.selectedExhibitionForFullScreen = ex
-                        }
+                        exhibitions: vm.exhibitions(on: date, from: exhibitions)
                     )
                     .presentationDetents([.medium, .large], selection: $daySheetDetent)
                     .presentationDragIndicator(.visible)
@@ -85,16 +82,6 @@ struct ExhibitionsCalendarView: View {
                     } else {
                         content
                     }
-                }
-            }
-            .fullScreenCover(item: $vm.selectedExhibitionForFullScreen) { ex in
-                NavigationStack {
-                    ExhibitionDetailView(exhibition: ex)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("閉じる") { vm.selectedExhibitionForFullScreen = nil }
-                            }
-                        }
                 }
             }
         }

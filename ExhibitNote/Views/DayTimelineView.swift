@@ -13,9 +13,8 @@ struct DayTimelineView: View {
     @ObservedObject var viewModel: DayTimelineViewModel
     @State private var showSuggestionActions = false
     @State private var selectedSuggestion: TimelineSuggestion?
-    @State private var addSheetSuggestion: TimelineSuggestion?
-    @State private var showingDetail = false
-    @State private var detailExhibition: Exhibition?
+    @State private var addVisitTarget: AddVisitEventTarget?
+    @State private var detailTarget: DetailNavigationTarget?
 
     private let timeColumnWidth: CGFloat = 44
     private let hourHeight: CGFloat = 60
@@ -58,25 +57,26 @@ struct DayTimelineView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .sheet(isPresented: $showingDetail) {
-            if let exhibition = detailExhibition {
-                ExhibitionDetailView(exhibition: exhibition)
-            }
+        .navigationDestination(item: $detailTarget) { target in
+            ExhibitionDetailView(exhibition: target.exhibition)
         }
-        .sheet(item: $addSheetSuggestion) { suggestion in
+        .navigationDestination(item: $addVisitTarget) { target in
             AddVisitEventSheetView(
-                exhibition: suggestion.exhibition,
-                initialStart: suggestion.availableStart,
-                availableEnd: suggestion.availableEnd
+                exhibition: target.exhibition,
+                initialStart: target.availableStart,
+                availableEnd: target.availableEnd
             )
         }
         .confirmationDialog("提案", isPresented: $showSuggestionActions, presenting: selectedSuggestion) { suggestion in
             Button("詳細を見る") {
-                detailExhibition = suggestion.exhibition
-                showingDetail = true
+                detailTarget = DetailNavigationTarget(exhibition: suggestion.exhibition)
             }
             Button("予定に追加") {
-                addSheetSuggestion = suggestion
+                addVisitTarget = AddVisitEventTarget(
+                    exhibition: suggestion.exhibition,
+                    availableStart: suggestion.availableStart,
+                    availableEnd: suggestion.availableEnd
+                )
             }
             Button("キャンセル", role: .cancel) {}
         } message: { suggestion in
@@ -592,6 +592,40 @@ private struct TimelineSuggestion: Identifiable {
 private struct TimeIntervalRange {
     let start: Date
     let end: Date
+}
+
+private struct DetailNavigationTarget: Identifiable, Hashable {
+    let exhibition: Exhibition
+
+    var id: String { exhibition.id }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(exhibition.id)
+    }
+
+    static func == (lhs: DetailNavigationTarget, rhs: DetailNavigationTarget) -> Bool {
+        lhs.exhibition.id == rhs.exhibition.id
+    }
+}
+
+private struct AddVisitEventTarget: Identifiable, Hashable {
+    let exhibition: Exhibition
+    let availableStart: Date
+    let availableEnd: Date
+
+    var id: String {
+        let start = Int(availableStart.timeIntervalSince1970)
+        let end = Int(availableEnd.timeIntervalSince1970)
+        return "\(exhibition.id)-\(start)-\(end)"
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    static func == (lhs: AddVisitEventTarget, rhs: AddVisitEventTarget) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
 private struct SuggestionBlockView: View {

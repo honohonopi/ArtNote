@@ -12,7 +12,6 @@ import UIKit
 struct DayExhibitionsListView: View {
     let date: Date
     let exhibitions: [Exhibition]
-    var onSelect: (Exhibition) -> Void = { _ in }   // ← 選択コールバック
     @State private var viewMode: DayViewMode = .exhibitions
     @StateObject private var timelineViewModel = DayTimelineViewModel()
 
@@ -64,7 +63,6 @@ struct DayExhibitionsListView: View {
                                         }
                                         .padding(.vertical, 4)
                                     }
-                                    .simultaneousGesture(TapGesture().onEnded { onSelect(ex) })
                                 }
                             }
                             .listStyle(.insetGrouped)

@@ -11,7 +11,6 @@ import Foundation
 final class CalendarViewModel: ObservableObject {
     @Published var selectedDate: Date? = nil
     @Published var showDaySheet: Bool = false
-    @Published var selectedExhibitionForFullScreen: Exhibition? = nil
 
     func exhibitions(on date: Date, from all: [Exhibition]) -> [Exhibition] {
         let cal = Calendar.current
