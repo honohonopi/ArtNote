@@ -130,7 +130,6 @@ struct ExhibitionsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(uiColor: .systemGroupedBackground))
-            .ignoresSafeArea(edges: .bottom)
             .navigationTitle("展覧会リスト")
             .navigationBarTitleDisplayMode(.inline)
             .if(showSearch) { view in
