@@ -64,50 +64,10 @@ struct ExhibitionDetailView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $vm.showPlanner) {
-            NavigationStack {
-                Form {
-                    Section("訪問日時") {
-                        DatePicker("日付", selection: $vm.visitDate,
-                                   in: exhibition.startDate...exhibition.endDate,
-                                   displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .environment(\.locale, Locale(identifier: "ja_JP"))
-                            .environment(\.calendar, Calendar(identifier: .gregorian))
-                        DatePicker("開始時刻", selection: $vm.visitDate,
-                                   displayedComponents: .hourAndMinute)
-                    }
-                    Section {
-                        Text("デフォルトで2時間枠を作成します（後からカレンダーで編集可能）。")
-                            .font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-                .navigationTitle("予定に追加")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("閉じる") { vm.showPlanner = false } }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("追加") {
-                            Task {
-                                // 権限
-                                let granted = (try? await EventKitService.shared.requestAccess()) ?? false
-                                guard granted else { return }
-                                do {
-                                    try EventKitService.shared.addVisitEvent(
-                                        exhibition: exhibition,
-                                        visitDate: vm.visitDate,
-                                        durationHours: 2
-                                    )
-                                    vm.showPlanner = false
-                                    vm.showAddDone = true
-                                } catch {
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .alert("カレンダーに追加しました", isPresented: $vm.showAddDone) {
-            Button("OK", role: .cancel) { }
+            AddVisitEventSheetView(
+                exhibition: exhibition,
+                initialStart: vm.visitDate
+            )
         }
         .sheet(isPresented: $vm.showEdit) {
             ExhibitionEditView(exhibition: exhibition)
