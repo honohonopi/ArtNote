@@ -53,7 +53,17 @@ struct DayExhibitionsListView: View {
                                         ExhibitionDetailView(exhibition: ex) // ← モーダル内でプッシュ
                                     } label: {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            scheduleTag(for: ex)
+                                            HStack(spacing: 6) {
+                                                scheduleTag(for: ex)
+                                                if ex.visited {
+                                                    Text("訪問済み")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
+                                                }
+                                            }
                                             Text(ex.title).font(.headline)
                                             Text("\(dfRange.string(from: ex.startDate)) 〜 \(dfRange.string(from: ex.endDate))")
                                                 .font(.footnote).foregroundStyle(.secondary)

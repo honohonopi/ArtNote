@@ -199,6 +199,7 @@ struct HomeSettingsView: View {
     @AppStorage("useAIExtraction") private var useAIExtraction = false
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     @AppStorage("userDisplayName") private var userDisplayName = ""
+    @AppStorage("includeVisitedSuggestions") private var includeVisitedSuggestions = false
 
     var body: some View {
         NavigationStack {
@@ -216,6 +217,9 @@ struct HomeSettingsView: View {
                             Text(category.displayName).tag(category.rawValue)
                         }
                     }
+                }
+                Section("提案") {
+                    Toggle("訪問済みも提案に含める", isOn: $includeVisitedSuggestions)
                 }
             }
             .navigationTitle("設定")

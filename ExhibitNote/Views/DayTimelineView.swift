@@ -11,6 +11,7 @@ struct DayTimelineView: View {
     let date: Date
     let exhibitions: [Exhibition]
     @ObservedObject var viewModel: DayTimelineViewModel
+    @AppStorage("includeVisitedSuggestions") private var includeVisitedSuggestions = false
     @State private var showSuggestionActions = false
     @State private var selectedSuggestion: TimelineSuggestion?
     @State private var addVisitTarget: AddVisitEventTarget?
@@ -345,6 +346,9 @@ struct DayTimelineView: View {
         )
         var suggestions: [TimelineSuggestion] = []
         for exhibition in exhibitions {
+            if !includeVisitedSuggestions, exhibition.visited {
+                continue
+            }
             guard case let .open(openTime, closeTime, _) = ExhibitionScheduleUtils.openingStatus(
                 on: day,
                 exhibition: exhibition
@@ -649,6 +653,14 @@ private struct SuggestionBlockView: View {
                     .padding(.horizontal, 6)
                     .background(theme.opacity(0.15), in: Capsule())
                     .foregroundStyle(theme)
+                if suggestion.exhibition.visited {
+                    Text("訪問済み")
+                        .font(.caption2)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 6)
+                        .background(Color(.systemGray5), in: Capsule())
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 if let badgeText {
                     Text(badgeText)
