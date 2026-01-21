@@ -361,7 +361,7 @@ private struct MemoRichTextView: UIViewRepresentable {
             case .insertText(let value):
                 insertText(value, in: textView)
             case .insertDivider:
-                insertText("\n—\n", in: textView)
+                insertText("\n———————————\n", in: textView)
             case .insertImage(let image):
                 insertImage(image, in: textView)
             }
