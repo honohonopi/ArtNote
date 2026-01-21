@@ -49,6 +49,10 @@ final class Exhibition {
     // --- 入館料・予約情報 ---
     var admissionFeesData: Data?
     var reservationRequired: Bool?
+
+    // --- 展覧会メモ（Appleメモ風） ---
+    @Attribute(.externalStorage) var memoData: Data?
+    var memoUpdatedAt: Date?
     
     var catalogImported: Bool = false // 作品リストインポート済みフラッグ
     var noteCount: Int? // メモ総数

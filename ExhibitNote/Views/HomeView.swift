@@ -198,10 +198,15 @@ struct HomeSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("useAIExtraction") private var useAIExtraction = false
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
+    @AppStorage("userDisplayName") private var userDisplayName = ""
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("ユーザー名") {
+                    TextField("名前を入力", text: $userDisplayName)
+                        .textInputAutocapitalization(.words)
+                }
                 Section("画像解析") {
                     Toggle("AIを使って精度を上げる", isOn: $useAIExtraction)
                 }

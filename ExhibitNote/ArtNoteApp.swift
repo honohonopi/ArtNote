@@ -11,12 +11,10 @@ import SwiftData
 
 @main
 struct ArtNoteApp: App {
-    @StateObject private var overlay = AppOverlayState()
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(overlay)
         }
-        .modelContainer(for: [Exhibition.self, ArtworkNote.self, Reminder.self])
+        .modelContainer(for: [Exhibition.self, Reminder.self])
     }
 }

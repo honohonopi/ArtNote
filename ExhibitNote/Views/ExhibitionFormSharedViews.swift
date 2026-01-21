@@ -581,17 +581,6 @@ struct ColorSelectionSectionView: View {
     }
 }
 
-struct CatalogSectionView: View {
-    @Binding var catalogTotalCountStr: String
-
-    var body: some View {
-        Section("作品リスト") {
-            TextField("作品総数（例: 80）", text: $catalogTotalCountStr)
-                .keyboardType(.numberPad)
-        }
-    }
-}
-
 struct SpecialOpeningEditorSheetView: View {
     @Binding var editingSpecialOpeningIndex: Int?
     @Binding var showSpecialOpeningEditor: Bool

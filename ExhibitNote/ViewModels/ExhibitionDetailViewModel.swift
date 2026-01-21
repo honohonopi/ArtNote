@@ -15,16 +15,12 @@ final class ExhibitionDetailViewModel: ObservableObject {
 
     @Published var showDeleteConfirm = false
     @Published var showEdit = false
-    @Published var showQuick = false
-    @Published var showStartChoice = false
-    @Published var showCatalogImportSheet = false
     @Published var showPlanner = false
     @Published var visitDate = Date()
     @Published var showAddDone = false
     @Published var showMapChoice = false
     @Published var showAdmissionDetails = false
     @Published var showScheduleDetails = false
-    @Published var showDetailSection = false
 
     init(exhibition: Exhibition) {
         self.exhibition = exhibition

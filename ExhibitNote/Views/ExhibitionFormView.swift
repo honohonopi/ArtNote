@@ -193,7 +193,6 @@ struct ExhibitionFormView: View {
                     Button("OK", role: .cancel) {}
                 }
                 ColorSelectionSectionView(pickedColor: $vm.pickedColor, autoColor: $vm.autoColor)
-                CatalogSectionView(catalogTotalCountStr: $vm.catalogTotalCountStr)
             }
             .navigationTitle("展覧会を追加")
             .navigationBarTitleDisplayMode(.inline)

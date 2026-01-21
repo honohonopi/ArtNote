@@ -90,7 +90,6 @@ struct ExhibitionEditView: View {
                     pickedColor: $vm.pickedColor,
                     autoColor: $vm.autoColor
                 )
-                CatalogSectionView(catalogTotalCountStr: $vm.catalogTotalCountStr)
                 Section("ポスター") {
                     HStack(spacing: 12) {
                         PosterPreviewView(

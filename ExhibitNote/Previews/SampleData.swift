@@ -11,7 +11,7 @@ import SwiftData
 struct PreviewContainer: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .modelContainer(for: [Exhibition.self, ArtworkNote.self, Reminder.self], inMemory: true)
+            .modelContainer(for: [Exhibition.self, Reminder.self], inMemory: true)
             .task { seed() }
     }
     private func seed() {
