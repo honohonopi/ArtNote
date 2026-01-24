@@ -17,7 +17,7 @@ struct ContentView: View {
             HomeView()
                 .tabItem { Label("ホーム", systemImage: "house") }
             ExhibitionsCalendarView()
-                .tabItem { Label("カレンダー", systemImage: "calendar") }
+                .tabItem { Label("会期カレンダー", systemImage: "calendar") }
             ExhibitionsView()
                 .tabItem { Label("展覧会リスト", systemImage: "list.bullet") }
         }

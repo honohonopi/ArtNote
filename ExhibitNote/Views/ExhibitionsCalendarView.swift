@@ -67,7 +67,7 @@ struct ExhibitionsCalendarView: View {
                     .accessibilityLabel("今日へ移動")
                 }
             }
-            .navigationTitle("カレンダー")
+            .navigationTitle("会期カレンダー")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $vm.showDaySheet) {
                 if let date = vm.selectedDate {
