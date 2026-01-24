@@ -203,6 +203,8 @@ struct HomeSettingsView: View {
     @AppStorage("notifyDeadlineEnabled") private var notifyDeadlineEnabled = true
     @AppStorage("notifyDeadlineHour") private var notifyDeadlineHour: Int = 9
     @AppStorage("notifyDeadlineMinute") private var notifyDeadlineMinute: Int = 0
+    @AppStorage("notifyNearbyOngoingEnabled") private var notifyNearbyOngoingEnabled = false
+    @AppStorage("notifyNearbyRadiusKm") private var notifyNearbyRadiusKm: Double = 10
     @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)]) private var allExhibitions: [Exhibition]
 
     var body: some View {
@@ -228,7 +230,7 @@ struct HomeSettingsView: View {
                 Section {
                     Toggle(isOn: $notifyDeadlineEnabled) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("会期終了の通知を受け取る")
+                            Text("間もなく終了する展覧会を通知する")
                             Text("会期終了1週間前と1日前に通知します")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -258,6 +260,15 @@ struct HomeSettingsView: View {
                     .onChange(of: notifyDeadlineMinute) { _, _ in
                         rescheduleNotifications()
                     }
+                    Toggle("近くで開館中の展示を通知する", isOn: $notifyNearbyOngoingEnabled)
+                    Picker("通知の半径", selection: $notifyNearbyRadiusKm) {
+                        Text("3km").tag(3.0)
+                        Text("5km").tag(5.0)
+                        Text("10km").tag(10.0)
+                        Text("20km").tag(20.0)
+                        Text("50km").tag(50.0)
+                    }
+                    .disabled(!notifyNearbyOngoingEnabled)
                 } header: {
                     Text("通知")
                 }
@@ -289,6 +300,9 @@ struct HomeView: View {
     
     @AppStorage("soonDays") private var soonDays: Int = 7
     @AppStorage("nearbyRadiusKm") private var nearbyRadiusKm: Double = 10
+    @AppStorage("notifyNearbyRadiusKm") private var notifyNearbyRadiusKm: Double = 10
+    @AppStorage("notifyNearbyOngoingEnabled") private var notifyNearbyOngoingEnabled = false
+    @AppStorage("notifyNearbyLastDate") private var notifyNearbyLastDate = ""
     
     @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)])
     private var allExhibitions: [Exhibition]
@@ -427,6 +441,7 @@ struct HomeView: View {
                 .onAppear {
                     if loc.authorization == .notDetermined { loc.request() }
                     recomputeNearby()
+                    checkNearbyOngoingNotification()
                 }
                 .onChange(of: hereKeyString) { _ in
                     if let c = loc.location?.coordinate {
@@ -434,10 +449,18 @@ struct HomeView: View {
                         mapRegion.span = spanForRadius
                     }
                     recomputeNearby()
+                    checkNearbyOngoingNotification()
                 }
                 // 件数だけ監視にして型推論を軽く
                 .onChange(of: allExhibitions.count) { _ in
                     recomputeNearby()
+                    checkNearbyOngoingNotification()
+                }
+                .onChange(of: notifyNearbyOngoingEnabled) { _, _ in
+                    checkNearbyOngoingNotification()
+                }
+                .onChange(of: notifyNearbyRadiusKm) { _, _ in
+                    checkNearbyOngoingNotification()
                 }
                 .onChange(of: selectedPinID) { _, newValue in
                     let target = exhibitionID(for: newValue)
@@ -454,5 +477,54 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func checkNearbyOngoingNotification() {
+        guard notifyNearbyOngoingEnabled else { return }
+        guard loc.location?.coordinate != nil else { return }
+        let todayKey = ymdKey(now)
+        guard notifyNearbyLastDate != todayKey else { return }
+        guard let target = nearbyOngoingCache.first(where: { isNotifyTarget($0.0, now: now, distanceKm: $0.1) }) else { return }
+        notifyNearbyLastDate = todayKey
+        Task {
+            await ReminderService.shared.scheduleNearbyOngoingNotification(
+                for: target.0,
+                identifier: "nearby_\(todayKey)"
+            )
+        }
+    }
+
+    private func isNotifyTarget(_ exhibition: Exhibition, now: Date, distanceKm: Double) -> Bool {
+        guard distanceKm <= notifyNearbyRadiusKm else { return false }
+        let status = ExhibitionScheduleUtils.openingStatus(on: now, exhibition: exhibition)
+        guard case .open(let openTime, let closeTime, let lastEntryTime) = status else { return false }
+        if let open = timeOnToday(openTime, now: now), now < open { return false }
+        let cutoff: Date
+        if let last = timeOnToday(lastEntryTime, now: now) {
+            cutoff = Calendar.current.date(byAdding: .minute, value: -30, to: last) ?? last
+        } else if let close = timeOnToday(closeTime, now: now) {
+            cutoff = Calendar.current.date(byAdding: .minute, value: -60, to: close) ?? close
+        } else {
+            cutoff = Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: now) ?? now
+        }
+        return now <= cutoff
+    }
+
+    private func timeOnToday(_ timeString: String?, now: Date) -> Date? {
+        guard let timeString else { return nil }
+        let trimmed = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "未設定" else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        guard let time = formatter.date(from: trimmed) else { return nil }
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return Calendar.current.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: 0, of: now)
+    }
+
+    private func ymdKey(_ date: Date) -> String {
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        guard let y = comps.year, let m = comps.month, let d = comps.day else { return "" }
+        return String(format: "%04d-%02d-%02d", y, m, d)
     }
 }

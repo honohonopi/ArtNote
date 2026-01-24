@@ -57,6 +57,17 @@ final class ReminderService {
         }
     }
 
+    func scheduleNearbyOngoingNotification(for exhibition: Exhibition, identifier: String) async {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = "近くで開館中の展示があります"
+        content.body = "\(exhibition.title) @ \(exhibition.venue)"
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let req = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        try? await center.add(req)
+    }
+
     private func merge(_ date: Date, with time: DateComponents) -> DateComponents {
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
         comps.hour = time.hour ?? 9
