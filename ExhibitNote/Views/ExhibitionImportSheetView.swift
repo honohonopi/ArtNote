@@ -19,21 +19,35 @@ struct ExhibitionImportSheetView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("展覧会情報") {
-                    posterPreview
+                Section {
                     HStack {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle")
+                                .foregroundStyle(.secondary)
+                            Text("ポスター画像")
+                        }
+                        Spacer()
+                        posterPreviewInline
+                    }
+                    HStack {
+                        Image(systemName: "a.square")
+                            .foregroundStyle(.secondary)
                         Text("展覧会名")
                         Spacer()
                         Text(payload.title)
                             .foregroundStyle(.secondary)
                     }
                     HStack {
+                        Image(systemName: "building.columns")
+                            .foregroundStyle(.secondary)
                         Text("会場")
                         Spacer()
                         Text(payload.venue)
                             .foregroundStyle(.secondary)
                     }
                     HStack {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(.secondary)
                         Text("会期")
                         Spacer()
                         Text("\(payload.startDate)〜\(payload.endDate)")
@@ -41,6 +55,8 @@ struct ExhibitionImportSheetView: View {
                     }
                     if let address = payload.address, !address.isEmpty {
                         HStack {
+                            Image(systemName: "mappin.and.ellipse")
+                                .foregroundStyle(.secondary)
                             Text("住所")
                             Spacer()
                             Text(address)
@@ -49,6 +65,8 @@ struct ExhibitionImportSheetView: View {
                     }
                     if let url = payload.url, !url.isEmpty {
                         HStack {
+                            Image(systemName: "link")
+                                .foregroundStyle(.secondary)
                             Text("URL")
                             Spacer()
                             Text(url)
@@ -59,112 +77,176 @@ struct ExhibitionImportSheetView: View {
                 }
                 if !payload.admissionFees.isEmpty || payload.reservationRequired != nil {
                     Section("入館情報") {
-                        if !payload.admissionFees.isEmpty {
-                            ForEach(payload.admissionFees) { fee in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Text(fee.rawLabel)
-                                        Spacer()
-                                        if fee.isFreeLike {
-                                            Text("無料")
-                                                .foregroundStyle(.secondary)
-                                        } else if let price = fee.priceYen {
-                                            Text("\(price)円")
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       !note.isEmpty {
-                                        Text(note)
-                                            .font(.caption)
+                        let displayFees = sanitizedAdmissionFees(payload.admissionFees)
+                        VStack(alignment: .leading, spacing: 6) {
+                            if !displayFees.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "chineseyuanrenminbisign")
                                             .foregroundStyle(.secondary)
+                                        Text("入館料")
+                                    }
+                                    .padding(.vertical, 4)
+                                    Divider()
+                                        .padding(.leading, 20)
+                                    ForEach(Array(displayFees.enumerated()), id: \.element.id) { index, fee in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack {
+                                                Text(fee.rawLabel)
+                                                Spacer()
+                                                if fee.isFreeLike {
+                                                    Text("無料")
+                                                        .foregroundStyle(.secondary)
+                                                } else if let price = fee.priceYen {
+                                                    Text("\(price)円")
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                            .padding(.vertical, 2)
+                                            if let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                               !note.isEmpty {
+                                                Text(note)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .padding(.leading, 20)
+                                        if index < displayFees.count - 1 {
+                                            Divider()
+                                                .padding(.leading, 20)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if let required = payload.reservationRequired {
-                            Text(required ? "事前予約制" : "予約不要")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if let required = payload.reservationRequired {
+                                if !displayFees.isEmpty {
+                                    Divider()
+                                }
+                                HStack {
+                                    Image(systemName: "info")
+                                        .foregroundStyle(.secondary)
+                                    Text("予約情報")
+                                    Spacer()
+                                    Text(required ? "事前予約制" : "予約不要")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.vertical, 4)
+                            }
                         }
                     }
                 }
                 if let schedule = payload.schedule {
                     Section("開館情報") {
-                        if let open = schedule.openTime, let close = schedule.closeTime {
-                            HStack {
-                                Text("開館時間")
-                                Spacer()
-                                Text("\(open)〜\(close)")
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
                                     .foregroundStyle(.secondary)
+                                Text("開館情報")
                             }
-                        }
-                        if let last = schedule.lastEntryTime, !last.isEmpty {
-                            HStack {
-                                Text("最終入場")
-                                Spacer()
-                                Text(last)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if !schedule.closedWeekdays.isEmpty {
-                            HStack {
-                                Text("休館曜日")
-                                Spacer()
-                                Text(weekdayLabel(schedule.closedWeekdays))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if let handling = schedule.holidayHandling, !handling.isEmpty {
-                            HStack {
-                                Text("祝日対応")
-                                Spacer()
-                                Text(holidayHandlingLabel(handling))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if !schedule.closedDateRules.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("特別休館日")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(schedule.closedDateRules, id: \.id) { rule in
-                                    Text(dateRuleText(rule))
-                                        .font(.caption)
+                            .padding(.vertical, 4)
+                            Divider()
+                                .padding(.leading, 20)
+                            if let open = schedule.openTime, let close = schedule.closeTime {
+                                HStack {
+                                    Text("開館時間")
+                                    Spacer()
+                                    Text("\(open)〜\(close)")
                                         .foregroundStyle(.secondary)
                                 }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
                             }
-                        }
-                        if !schedule.openDateRules.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("特別開館日")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(schedule.openDateRules, id: \.id) { rule in
-                                    Text(dateRuleText(rule))
-                                        .font(.caption)
+                            if let last = schedule.lastEntryTime, !last.isEmpty {
+                                HStack {
+                                    Text("最終入場")
+                                    Spacer()
+                                    Text(last)
                                         .foregroundStyle(.secondary)
                                 }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
                             }
-                        }
-                        if !schedule.specialOpenings.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("特別開館時間")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                ForEach(schedule.specialOpenings, id: \.id) { record in
-                                    Text(specialOpeningText(record))
-                                        .font(.caption)
+                            if !schedule.closedWeekdays.isEmpty {
+                                HStack {
+                                    Text("休館曜日")
+                                    Spacer()
+                                    Text(weekdayLabel(schedule.closedWeekdays))
                                         .foregroundStyle(.secondary)
                                 }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
+                            }
+                            if let handling = schedule.holidayHandling, !handling.isEmpty {
+                                HStack {
+                                    Text("祝日対応")
+                                    Spacer()
+                                    Text(holidayHandlingLabel(handling))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
+                            }
+                            if !schedule.closedDateRules.isEmpty {
+                                HStack(alignment: .top) {
+                                    Text("特別休館日")
+                                    Spacer()
+                                    Text(dateRulesText(schedule.closedDateRules))
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
+                            }
+                            if !schedule.openDateRules.isEmpty {
+                                HStack(alignment: .top) {
+                                    Text("特別開館日")
+                                    Spacer()
+                                    Text(dateRulesText(schedule.openDateRules))
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.trailing)
+                                }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
+                                Divider()
+                                    .padding(.leading, 20)
+                            }
+                            if !schedule.specialOpenings.isEmpty {
+                                HStack(alignment: .top) {
+                                    Text("特別開館時間")
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        ForEach(Array(schedule.specialOpenings.enumerated()), id: \.element.id) { index, record in
+                                            let parts = specialOpeningParts(record)
+                                            Text(parts.main)
+                                                .foregroundStyle(.secondary)
+                                                .multilineTextAlignment(.trailing)
+                                            if let last = parts.lastEntry {
+                                                Text(last)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .multilineTextAlignment(.trailing)
+                                            }
+                                            if index < schedule.specialOpenings.count - 1 {
+                                                Divider()
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.leading, 20)
+                                .padding(.vertical, 4)
                             }
                         }
                     }
-                }
-                Section {
-                    Text("この美術展を登録しますか？")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("共有された展覧会")
@@ -230,25 +312,18 @@ struct ExhibitionImportSheetView: View {
     }
 
     @ViewBuilder
-    private var posterPreview: some View {
+    private var posterPreviewInline: some View {
         if let data = posterThumbData, let image = UIImage(data: data) {
-            HStack {
-                Spacer()
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 96, height: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                Spacer()
-            }
-            .padding(.vertical, 4)
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 72, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
         } else if isLoadingPoster {
-            HStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .padding(.vertical, 4)
+            ProgressView()
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -307,7 +382,11 @@ struct ExhibitionImportSheetView: View {
         }
     }
 
-    private func specialOpeningText(_ record: SpecialOpeningRecord) -> String {
+    private func dateRulesText(_ rules: [DateRuleRecord]) -> String {
+        rules.map { dateRuleText($0) }.joined(separator: "\n")
+    }
+
+    private func specialOpeningParts(_ record: SpecialOpeningRecord) -> (main: String, lastEntry: String?) {
         let label: String
         switch record.ruleType {
         case .date:
@@ -326,9 +405,25 @@ struct ExhibitionImportSheetView: View {
             }
         }
         let time = "\(record.openTime)〜\(record.closeTime)"
-        if let last = record.lastEntryTime, !last.isEmpty {
-            return "\(label) \(time) 最終入場 \(last)"
+        let main = "\(label) \(time)".trimmingCharacters(in: .whitespacesAndNewlines)
+        let last = record.lastEntryTime?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let last, !last.isEmpty {
+            return (main, "最終入場 \(last)")
         }
-        return "\(label) \(time)"
+        return (main, nil)
+    }
+
+    private func sanitizedAdmissionFees(_ fees: [AdmissionFeeRule]) -> [AdmissionFeeRule] {
+        fees.compactMap { fee in
+            let label = fee.rawLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let note = fee.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if label.isEmpty && fee.priceYen == nil && note.isEmpty {
+                return nil
+            }
+            var cleaned = fee
+            cleaned.rawLabel = label
+            cleaned.note = note.isEmpty ? nil : note
+            return cleaned
+        }
     }
 }
