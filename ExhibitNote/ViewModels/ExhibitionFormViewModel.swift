@@ -9,6 +9,7 @@ import SwiftUI
 import MapKit
 import PhotosUI
 import UIKit
+import PDFKit
 
 @MainActor
 final class ExhibitionFormViewModel: ObservableObject {
@@ -23,6 +24,8 @@ final class ExhibitionFormViewModel: ObservableObject {
     @Published var selectedItem: PhotosPickerItem? = nil
     @Published var ocrAlertMessage: String? = nil
     @Published var showOcrAlert = false
+    @Published var showPDFPicker = false
+    @Published var pdfSelection: PDFSelection? = nil
 
     @Published var titleOptions: [String] = []
     @Published var venueOptions: [String] = []
@@ -88,6 +91,13 @@ final class ExhibitionFormViewModel: ObservableObject {
         let query: String
     }
 
+    struct PDFSelection: Identifiable {
+        let id = UUID()
+        let url: URL
+        let pageCount: Int
+        let useAIExtraction: Bool
+    }
+
     func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
         if let opening {
             switch opening.rule {
@@ -117,6 +127,101 @@ final class ExhibitionFormViewModel: ObservableObject {
             draftSpecialOpeningOpenTime = scheduleOpenTime ?? "10:00"
             draftSpecialOpeningCloseTime = scheduleCloseTime ?? "17:00"
             draftSpecialOpeningLastEntryTime = scheduleLastEntryTime
+        }
+    }
+
+    func preparePickedPDF(_ url: URL, useAIExtraction: Bool) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { url.stopAccessingSecurityScopedResource() }
+        }
+        guard let document = PDFDocument(url: url) else {
+            ocrAlertMessage = "PDFの読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        if document.pageCount <= 1 {
+            Task { await handlePickedPDF(url, pageIndex: 0, useAIExtraction: useAIExtraction) }
+            return
+        }
+        pdfSelection = PDFSelection(url: url, pageCount: document.pageCount, useAIExtraction: useAIExtraction)
+    }
+
+    func handlePickedPDF(_ url: URL, pageIndex: Int, useAIExtraction: Bool) async {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { url.stopAccessingSecurityScopedResource() }
+        }
+        guard let document = PDFDocument(url: url),
+              pageIndex >= 0,
+              pageIndex < document.pageCount,
+              let page = document.page(at: pageIndex),
+              let image = renderPDFPage(page)
+        else {
+            ocrAlertMessage = "PDFの読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        await handlePickedImage(image, useAIExtraction: useAIExtraction)
+    }
+
+    func handlePickedPDF(_ url: URL, pageIndices: [Int], useAIExtraction: Bool) async {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { url.stopAccessingSecurityScopedResource() }
+        }
+        guard let document = PDFDocument(url: url) else {
+            ocrAlertMessage = "PDFの読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        let images: [UIImage] = pageIndices.compactMap { index in
+            guard index >= 0, index < document.pageCount,
+                  let page = document.page(at: index)
+            else { return nil }
+            return renderPDFPage(page, maxSide: 1600)
+        }
+        guard let combined = combineImagesVertically(images) else {
+            ocrAlertMessage = "PDFの読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        await handlePickedImage(combined, useAIExtraction: useAIExtraction)
+    }
+
+    private func renderPDFPage(_ page: PDFPage, maxSide: CGFloat = 2000) -> UIImage? {
+        let pageRect = page.bounds(for: .mediaBox)
+        let scale = min(maxSide / max(pageRect.width, pageRect.height), 1)
+        let size = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        return renderer.image { context in
+            context.cgContext.saveGState()
+            context.cgContext.translateBy(x: 0, y: size.height)
+            context.cgContext.scaleBy(x: scale, y: -scale)
+            page.draw(with: .mediaBox, to: context.cgContext)
+            context.cgContext.restoreGState()
+        }
+    }
+
+    private func combineImagesVertically(_ images: [UIImage]) -> UIImage? {
+        guard !images.isEmpty else { return nil }
+        let maxWidth = min(images.map { $0.size.width }.max() ?? 0, 1600)
+        let spacing: CGFloat = 12
+        let sizes: [CGSize] = images.map { img in
+            let scale = maxWidth / img.size.width
+            return CGSize(width: maxWidth, height: img.size.height * scale)
+        }
+        let totalHeight = sizes.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, sizes.count - 1))
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: maxWidth, height: totalHeight))
+        return renderer.image { context in
+            var y: CGFloat = 0
+            for (idx, img) in images.enumerated() {
+                let size = sizes[idx]
+                img.draw(in: CGRect(origin: CGPoint(x: 0, y: y), size: size))
+                y += size.height + spacing
+            }
         }
     }
 

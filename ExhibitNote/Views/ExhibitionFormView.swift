@@ -7,6 +7,8 @@
 
 // 展覧会登録フォーム
 import SwiftUI
+import UniformTypeIdentifiers
+import PDFKit
 import SwiftData
 import PhotosUI
 import CoreLocation
@@ -171,7 +173,8 @@ struct ExhibitionFormView: View {
                 }
                 PosterAutoInputSectionView(
                     showPhotoPicker: $vm.showPhotoPicker,
-                    showCamera: $vm.showCamera
+                    showCamera: $vm.showCamera,
+                    showPDFPicker: $vm.showPDFPicker
                 )
                 .onChange(of: vm.selectedItem) { _, newItem in
                     guard let item = newItem else { return }
@@ -284,15 +287,39 @@ struct ExhibitionFormView: View {
                 vm.showCamera = false
             }
         }
+        .sheet(item: $vm.pdfSelection) { selection in
+            PDFPagePickerSheet(
+                url: selection.url,
+                pageCount: selection.pageCount,
+                onSelect: { indices in
+                    vm.pdfSelection = nil
+                    Task { await vm.handlePickedPDF(selection.url, pageIndices: indices, useAIExtraction: selection.useAIExtraction) }
+                },
+                onCancel: {
+                    vm.pdfSelection = nil
+                }
+            )
+        }
+        .fileImporter(isPresented: $vm.showPDFPicker, allowedContentTypes: [.pdf], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                vm.preparePickedPDF(url, useAIExtraction: useAIExtraction)
+            case .failure:
+                vm.ocrAlertMessage = "PDFの読み込みに失敗しました。"
+                vm.showOcrAlert = true
+            }
+        }
     }
 }
 
 private struct PosterAutoInputSectionView: View {
     @Binding var showPhotoPicker: Bool
     @Binding var showCamera: Bool
+    @Binding var showPDFPicker: Bool
 
     var body: some View {
-        Section("ポスターから自動入力") {
+        Section("ポスターから展覧会情報を自動入力") {
             Menu {
                 Button {
                     showPhotoPicker = true
@@ -307,8 +334,136 @@ private struct PosterAutoInputSectionView: View {
                         Label("カメラ", systemImage: "camera.viewfinder")
                     }
                 }
+                Button {
+                    showPDFPicker = true
+                } label: {
+                    Label("PDFを選ぶ", systemImage: "doc.text")
+                }
             } label: {
-                Label("写真から情報を抽出", systemImage: "text.viewfinder")
+                Label("ポスターを読み込む", systemImage: "text.viewfinder")
+            }
+        }
+    }
+}
+
+private struct PDFPagePickerSheet: View {
+    let url: URL
+    let pageCount: Int
+    let onSelect: ([Int]) -> Void
+    let onCancel: () -> Void
+    @StateObject private var loader: PDFThumbnailLoader
+    @State private var selectedIndices: Set<Int>
+
+    init(url: URL, pageCount: Int, onSelect: @escaping ([Int]) -> Void, onCancel: @escaping () -> Void) {
+        self.url = url
+        self.pageCount = pageCount
+        self.onSelect = onSelect
+        self.onCancel = onCancel
+        _loader = StateObject(wrappedValue: PDFThumbnailLoader(url: url, pageCount: pageCount))
+        _selectedIndices = State(initialValue: pageCount > 0 ? [0] : [])
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("読み込むページを選択してください") {
+                    ForEach(0..<pageCount, id: \.self) { index in
+                        Button {
+                            toggleSelection(index)
+                        } label: {
+                            HStack(spacing: 12) {
+                                PDFPageThumbnailView(image: loader.thumbnails[index])
+                                    .frame(width: 64, height: 90)
+                                Text("ページ \(index + 1)")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                if selectedIndices.contains(index) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                        }
+                        .onAppear { loader.load(page: index) }
+                    }
+                }
+            }
+            .navigationTitle("PDFページ選択")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完了") {
+                        onSelect(selectedIndices.sorted())
+                    }
+                    .disabled(selectedIndices.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func toggleSelection(_ index: Int) {
+        if selectedIndices.contains(index) {
+            selectedIndices.remove(index)
+        } else {
+            selectedIndices.insert(index)
+        }
+    }
+}
+
+private struct PDFPageThumbnailView: View {
+    let image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.1))
+                    ProgressView()
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private final class PDFThumbnailLoader: ObservableObject {
+    @Published var thumbnails: [Int: UIImage] = [:]
+    private let url: URL
+    private let pageCount: Int
+    private let accessGranted: Bool
+    private let document: PDFDocument?
+
+    init(url: URL, pageCount: Int) {
+        self.url = url
+        self.pageCount = pageCount
+        accessGranted = url.startAccessingSecurityScopedResource()
+        document = PDFDocument(url: url)
+    }
+
+    deinit {
+        if accessGranted {
+            url.stopAccessingSecurityScopedResource()
+        }
+    }
+
+    func load(page index: Int) {
+        guard thumbnails[index] == nil else { return }
+        guard index >= 0, index < pageCount else { return }
+        guard let page = document?.page(at: index) else { return }
+        let targetSize = CGSize(width: 160, height: 220)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let image = page.thumbnail(of: targetSize, for: .mediaBox)
+            DispatchQueue.main.async {
+                self.thumbnails[index] = image
             }
         }
     }
