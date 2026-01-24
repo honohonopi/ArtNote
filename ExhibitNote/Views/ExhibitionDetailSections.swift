@@ -34,7 +34,8 @@ struct ExhibitionDetailSummarySectionView: View {
             HStack(spacing: 8) {
                 Text(exhibition.title)
                     .font(.title2).bold()
-                if let url = exhibition.url {
+                if let rawURL = exhibition.url?.absoluteString,
+                   let url = rawURL.normalizedWebURL() {
                     Link(destination: url) {
                         Image(systemName: "link")
                             .imageScale(.medium)

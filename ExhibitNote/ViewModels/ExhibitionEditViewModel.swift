@@ -124,7 +124,7 @@ final class ExhibitionEditViewModel: ObservableObject {
         if let color = pickedColor {
             exhibition.setColor(UIColor(color))
         }
-        exhibition.url = URL(string: urlString)
+        exhibition.url = urlString.normalizedWebURL()
         exhibition.catalogTotalCount = Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
         exhibition.scheduleOpenTime = scheduleOpenTime
         exhibition.scheduleCloseTime = scheduleCloseTime

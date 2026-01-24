@@ -32,12 +32,13 @@ struct ExhibitionFormView: View {
     private func save() {
         print(vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines))
         let total = Int(vm.catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
+        let normalizedURL = vm.urlString.normalizedWebURL()
         let ex = Exhibition(title: vm.title,
                             venue: vm.venue,
                             address: vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
                             startDate: vm.startDate,
                             endDate: vm.endDate,
-                            url: URL(string: vm.urlString),
+                            url: normalizedURL,
                             catalogTotalCount: total)
         ex.scheduleOpenTime = vm.scheduleOpenTime
         ex.scheduleCloseTime = vm.scheduleCloseTime

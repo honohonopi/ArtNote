@@ -8,6 +8,7 @@
 // 展覧会詳細
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
@@ -16,6 +17,11 @@ struct ExhibitionDetailView: View {
 
     @StateObject private var vm: ExhibitionDetailViewModel
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
+    @State private var shareItem: ShareItem?
+    @State private var shareExcludedTypes: [UIActivity.ActivityType]?
+    @State private var isPreparingShare = false
+    @State private var shareErrorMessage: String?
+    @State private var showShareFallbackPrompt = false
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -46,8 +52,17 @@ struct ExhibitionDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     // 共有
-                    ShareLink(items: [exhibition.title, exhibition.venue]) {
-                        Label("共有", systemImage: "square.and.arrow.up")
+                    Button {
+                        Task { await prepareShare() }
+                    } label: {
+                        Label(isPreparingShare ? "リンク作成中..." : "リンクで共有",
+                              systemImage: "link")
+                    }
+                    .disabled(isPreparingShare)
+                    Button {
+                        shareAirDrop()
+                    } label: {
+                        Label("AirDropで共有", systemImage: "dot.radiowaves.left.and.right")
                     }
                     // カレンダーに追加
                     Button {
@@ -80,6 +95,42 @@ struct ExhibitionDetailView: View {
                     Image(systemName: "ellipsis.circle")
                 }
             }
+        }
+        .sheet(item: $shareItem) { item in
+            ShareSheet(items: item.items, excludedActivityTypes: shareExcludedTypes)
+        }
+        .overlay {
+            if isPreparingShare {
+                ZStack {
+                    Color.black.opacity(0.2)
+                        .ignoresSafeArea()
+                    HStack(spacing: 12) {
+                        ProgressView()
+                        Text("リンクを準備中...")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+        .alert("共有できませんでした", isPresented: Binding(
+            get: { shareErrorMessage != nil },
+            set: { if !$0 { shareErrorMessage = nil } }
+        )) {
+            Button("OK") { shareErrorMessage = nil }
+        } message: {
+            Text(shareErrorMessage ?? "")
+        }
+        .confirmationDialog(
+            "共有URLが長すぎるため作成できませんでした。\nタイトル・会場・公式リンクのみ共有しますか？",
+            isPresented: $showShareFallbackPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("共有する") { shareFallbackText() }
+            Button("キャンセル", role: .cancel) {}
         }
         .confirmationDialog(
             "本当に削除しますか？",
@@ -119,6 +170,63 @@ struct ExhibitionDetailView: View {
                 Button("位置情報が未設定です", role: .cancel) {}
             }
         }
+    }
+
+    private func prepareShare() async {
+        isPreparingShare = true
+        defer { isPreparingShare = false }
+        shareExcludedTypes = nil
+        let result = await ExhibitionShareService.makeShareURL(for: exhibition)
+        switch result {
+        case .success(let url):
+            shareItem = ShareItem(items: [url])
+        case .failure(let error):
+            switch error {
+            case .tooLong:
+                showShareFallbackPrompt = true
+            case .unavailable:
+                shareErrorMessage = shareErrorMessageText(error)
+            }
+        }
+    }
+
+    private func shareErrorMessageText(_ error: ExhibitionShareService.ShareError) -> String {
+        switch error {
+        case .tooLong:
+            return "共有URLが長すぎるため作成できませんでした。項目を減らして再試行してください。"
+        case .unavailable:
+            return "共有URLを作成できませんでした。ネットワーク状態を確認して再試行してください。"
+        }
+    }
+
+    private func shareFallbackText() {
+        shareExcludedTypes = nil
+        var items: [Any] = [exhibition.title, exhibition.venue]
+        if let url = exhibition.url?.absoluteString, !url.isEmpty {
+            items.append(url)
+        }
+        shareItem = ShareItem(items: items)
+    }
+
+    private func shareAirDrop() {
+        guard let fileURL = ExhibitionShareService.makeAirDropShareFile(for: exhibition) else {
+            shareErrorMessage = "共有ファイルを作成できませんでした。"
+            return
+        }
+        shareExcludedTypes = [
+            .postToFacebook,
+            .postToFlickr,
+            .postToTencentWeibo,
+            .postToTwitter,
+            .postToVimeo,
+            .postToWeibo,
+            .assignToContact,
+            .saveToCameraRoll,
+            .addToReadingList,
+            .openInIBooks,
+            .markupAsPDF
+        ]
+        shareItem = ShareItem(items: [fileURL])
     }
     
     private func deleteExhibition() {

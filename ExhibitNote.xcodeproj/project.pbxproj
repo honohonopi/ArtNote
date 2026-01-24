@@ -11,6 +11,10 @@
 		553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */ = {isa = PBXBuildFile; productRef = 553ACEE82EC36F6900F341A1 /* TOCropViewController */; };
 		55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = 55705A1A2E8FD30E00FB2905 /* HorizonCalendar */; };
 		55EBEB542F0A3A0F00D5EE2E /* GoogleGenerativeAI in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEB532F0A3A0F00D5EE2E /* GoogleGenerativeAI */; };
+		55EBEFB02F249E9D00D5EE2E /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEFAF2F249E9D00D5EE2E /* FirebaseAuth */; };
+		55EBEFB22F249E9D00D5EE2E /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEFB12F249E9D00D5EE2E /* FirebaseCore */; };
+		55EBEFB42F249E9D00D5EE2E /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEFB32F249E9D00D5EE2E /* FirebaseFirestore */; };
+		55EBEFB62F249E9D00D5EE2E /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 55EBEFB52F249E9D00D5EE2E /* FirebaseStorage */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,9 +47,13 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				55705A1B2E8FD30E00FB2905 /* HorizonCalendar in Frameworks */,
+				55EBEFB02F249E9D00D5EE2E /* FirebaseAuth in Frameworks */,
 				553ACEE92EC36F6900F341A1 /* TOCropViewController in Frameworks */,
 				553ACEE72EC36F6900F341A1 /* CropViewController in Frameworks */,
+				55EBEFB22F249E9D00D5EE2E /* FirebaseCore in Frameworks */,
+				55EBEFB62F249E9D00D5EE2E /* FirebaseStorage in Frameworks */,
 				55EBEB542F0A3A0F00D5EE2E /* GoogleGenerativeAI in Frameworks */,
+				55EBEFB42F249E9D00D5EE2E /* FirebaseFirestore in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -89,6 +97,10 @@
 				553ACEE62EC36F6900F341A1 /* CropViewController */,
 				553ACEE82EC36F6900F341A1 /* TOCropViewController */,
 				55EBEB532F0A3A0F00D5EE2E /* GoogleGenerativeAI */,
+				55EBEFAF2F249E9D00D5EE2E /* FirebaseAuth */,
+				55EBEFB12F249E9D00D5EE2E /* FirebaseCore */,
+				55EBEFB32F249E9D00D5EE2E /* FirebaseFirestore */,
+				55EBEFB52F249E9D00D5EE2E /* FirebaseStorage */,
 			);
 			productName = ArtNote;
 			productReference = 557059D12E8FAA6500FB2905 /* ExhibitNote.app */;
@@ -122,6 +134,7 @@
 				55705A192E8FD30E00FB2905 /* XCRemoteSwiftPackageReference "HorizonCalendar" */,
 				553ACEE52EC36F6900F341A1 /* XCRemoteSwiftPackageReference "TOCropViewController" */,
 				55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */,
+				55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 557059D22E8FAA6500FB2905 /* Products */;
@@ -274,6 +287,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ExhibitNote/ExhibitNote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
@@ -309,6 +323,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ExhibitNote/ExhibitNote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
@@ -385,6 +400,14 @@
 				minimumVersion = 0.5.6;
 			};
 		};
+		55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.8.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -407,6 +430,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 55EBEB522F0A3A0F00D5EE2E /* XCRemoteSwiftPackageReference "deprecated-generative-ai-swift" */;
 			productName = GoogleGenerativeAI;
+		};
+		55EBEFAF2F249E9D00D5EE2E /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		55EBEFB12F249E9D00D5EE2E /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		55EBEFB32F249E9D00D5EE2E /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		55EBEFB52F249E9D00D5EE2E /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55EBEFAE2F249E9D00D5EE2E /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
