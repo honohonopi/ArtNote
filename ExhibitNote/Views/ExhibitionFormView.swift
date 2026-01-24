@@ -218,6 +218,10 @@ struct ExhibitionFormView: View {
             .overlay(alignment: .top) {
                 AIAnalyzingToastView(isVisible: vm.isAIAnalyzing)
             }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }
