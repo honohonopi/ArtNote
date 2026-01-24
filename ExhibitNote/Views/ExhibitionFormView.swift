@@ -364,6 +364,7 @@ private struct PDFPagePickerSheet: View {
     let onCancel: () -> Void
     @StateObject private var loader: PDFThumbnailLoader
     @State private var selectedIndices: Set<Int>
+    @State private var showLimitAlert = false
 
     init(url: URL, pageCount: Int, onSelect: @escaping ([Int]) -> Void, onCancel: @escaping () -> Void) {
         self.url = url
@@ -377,7 +378,7 @@ private struct PDFPagePickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("読み込むページを選択してください") {
+                Section("読み込むページを選択してください（最大2枚）") {
                     ForEach(0..<pageCount, id: \.self) { index in
                         Button {
                             toggleSelection(index)
@@ -413,6 +414,9 @@ private struct PDFPagePickerSheet: View {
                     .disabled(selectedIndices.isEmpty)
                 }
             }
+            .alert("ページは2枚まで選択できます。", isPresented: $showLimitAlert) {
+                Button("OK", role: .cancel) {}
+            }
         }
     }
 
@@ -420,7 +424,11 @@ private struct PDFPagePickerSheet: View {
         if selectedIndices.contains(index) {
             selectedIndices.remove(index)
         } else {
-            selectedIndices.insert(index)
+            if selectedIndices.count >= 2 {
+                showLimitAlert = true
+            } else {
+                selectedIndices.insert(index)
+            }
         }
     }
 }
