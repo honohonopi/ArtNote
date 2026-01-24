@@ -22,7 +22,7 @@ final class DayCell: UICollectionViewCell {
         
         todayBackground.isHidden = true
         todayBackground.backgroundColor = UIColor.systemBlue
-        todayBackground.layer.cornerRadius = 10
+        todayBackground.layer.cornerRadius = 12
         todayBackground.layer.masksToBounds = true
         
         NSLayoutConstraint.activate([
@@ -31,17 +31,17 @@ final class DayCell: UICollectionViewCell {
             label.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             
             // 丸背景：ラベル中心に合わせる（20x20の円）
-            todayBackground.widthAnchor.constraint(equalToConstant: 20),
-            todayBackground.heightAnchor.constraint(equalToConstant: 20),
+            todayBackground.widthAnchor.constraint(equalToConstant: 24),
+            todayBackground.heightAnchor.constraint(equalToConstant: 24),
             todayBackground.centerXAnchor.constraint(equalTo: label.centerXAnchor),
             todayBackground.centerYAnchor.constraint(equalTo: label.centerYAnchor)
         ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(text: String, dimmed: Bool, isToday: Bool) {
+    func configure(text: String, dimmed: Bool, isToday: Bool, textColor: UIColor) {
         label.text = text
-        label.textColor = dimmed ? .tertiaryLabel : .label
+        label.textColor = dimmed ? .tertiaryLabel : textColor
         todayBackground.isHidden = !isToday
         if isToday { label.textColor = .white }
     }

@@ -334,7 +334,7 @@ private struct PosterAutoInputSectionView: View {
     @Binding var showPDFPicker: Bool
 
     var body: some View {
-        Section("ポスターから展覧会情報を自動入力") {
+        Section {
             Menu {
                 Button {
                     showPDFPicker = true
@@ -357,6 +357,8 @@ private struct PosterAutoInputSectionView: View {
             } label: {
                 Label("ポスターを読み込む", systemImage: "text.viewfinder")
             }
+        } header: {
+            Label("ポスターから展覧会情報を自動入力", systemImage: "sparkles")
         }
     }
 }

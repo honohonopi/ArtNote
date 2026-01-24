@@ -103,10 +103,8 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         
         // 初期描画
         updateWeekdaySymbols()
-        if !currentExhibitions.isEmpty {
-            layout.setExhibitions(currentExhibitions)
-            configure(with: currentExhibitions)
-        }
+        layout.setExhibitions(currentExhibitions)
+        configure(with: currentExhibitions)
     }
     
     @objc private func handleCollectionTap(_ gr: UITapGestureRecognizer) {
@@ -185,9 +183,12 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         if let d = date {
             let day = cal.component(.day, from: d)
             let thisMonth = cal.component(.month, from: d) == cal.component(.month, from: monthAnchor)
-            cell.configure(text: "\(day)", dimmed: !thisMonth, isToday: cal.isDateInToday(d))
+            let weekday = cal.component(.weekday, from: d)
+            let isHoliday = JapaneseHolidayService.isHoliday(d)
+            let textColor = dayTextColor(weekday: weekday, isHoliday: isHoliday)
+            cell.configure(text: "\(day)", dimmed: !thisMonth, isToday: cal.isDateInToday(d), textColor: textColor)
         } else {
-            cell.configure(text: "", dimmed: true, isToday: false)
+            cell.configure(text: "", dimmed: true, isToday: false, textColor: .label)
         }
         return cell
     }
@@ -350,6 +351,16 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
                 weekdayLabels[i].textColor = .secondaryLabel
             }
         }
+    }
+
+    private func dayTextColor(weekday: Int, isHoliday: Bool) -> UIColor {
+        if isHoliday || weekday == 1 {
+            return .systemRed
+        }
+        if weekday == 7 {
+            return .systemBlue
+        }
+        return .label
     }
 
 }
