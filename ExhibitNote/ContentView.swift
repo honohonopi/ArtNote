@@ -58,9 +58,6 @@ struct ContentView: View {
     }
 
     private func shareOpenErrorMessageText(for url: URL) -> String {
-        if url.isFileURL {
-            return "共有ファイルを読み込めませんでした。"
-        }
         guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let items = comps.queryItems
         else {

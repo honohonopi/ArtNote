@@ -76,9 +76,6 @@ enum ExhibitionShareService {
     }
 
     static func resolvePayload(from url: URL) async -> ExhibitionSharePayload? {
-        if url.isFileURL, let payload = decodeShareFile(url) {
-            return payload
-        }
         let normalized = normalizeShareURL(url)
         if let payload = decodeLegacy(normalized) {
             return payload
@@ -159,45 +156,6 @@ enum ExhibitionShareService {
         return .failure(.tooLong)
     }
 
-    static func makeAirDropShareFile(for exhibition: Exhibition) -> URL? {
-        let payload = ExhibitionSharePayload(
-            id: exhibition.id,
-            title: exhibition.title,
-            venue: exhibition.venue,
-            startDate: Self.ymdString(exhibition.startDate),
-            endDate: Self.ymdString(exhibition.endDate),
-            address: exhibition.address,
-            url: exhibition.url?.absoluteString,
-            latitude: exhibition.latitude,
-            longitude: exhibition.longitude,
-            color: shareColor(from: exhibition),
-            posterThumbBase64: posterThumbBase64ForFile(from: exhibition),
-            posterThumbURL: nil,
-            admissionFees: exhibition.admissionFeeRules,
-            reservationRequired: exhibition.reservationRequired,
-            schedule: shareSchedule(from: exhibition)
-        )
-        guard let data = try? JSONEncoder().encode(payload) else { return nil }
-        let filename = "exhibition-\(UUID().uuidString).exhibitnote"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        do {
-            try data.write(to: url, options: [.atomic])
-            return url
-        } catch {
-            return nil
-        }
-    }
-
-    private static func decodeShareFile(_ url: URL) -> ExhibitionSharePayload? {
-        guard url.pathExtension.lowercased() == "exhibitnote" else { return nil }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(ExhibitionSharePayload.self, from: data)
-    }
-
-    private static func posterThumbBase64ForFile(from exhibition: Exhibition) -> String? {
-        guard let data = exhibition.posterThumbData, !data.isEmpty else { return nil }
-        return data.base64EncodedString()
-    }
 
     static func parseDate(_ text: String) -> Date? {
         let f = DateFormatter()

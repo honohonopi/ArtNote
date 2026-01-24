@@ -8,7 +8,6 @@
 // 展覧会詳細
 import SwiftUI
 import SwiftData
-import UIKit
 
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
@@ -18,7 +17,6 @@ struct ExhibitionDetailView: View {
     @StateObject private var vm: ExhibitionDetailViewModel
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     @State private var shareItem: ShareItem?
-    @State private var shareExcludedTypes: [UIActivity.ActivityType]?
     @State private var isPreparingShare = false
     @State private var shareErrorMessage: String?
     @State private var showShareFallbackPrompt = false
@@ -59,11 +57,6 @@ struct ExhibitionDetailView: View {
                               systemImage: "link")
                     }
                     .disabled(isPreparingShare)
-                    Button {
-                        shareAirDrop()
-                    } label: {
-                        Label("AirDropで共有", systemImage: "dot.radiowaves.left.and.right")
-                    }
                     // カレンダーに追加
                     Button {
                         vm.visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
@@ -97,7 +90,7 @@ struct ExhibitionDetailView: View {
             }
         }
         .sheet(item: $shareItem) { item in
-            ShareSheet(items: item.items, excludedActivityTypes: shareExcludedTypes)
+            ShareSheet(items: item.items)
         }
         .overlay {
             if isPreparingShare {
@@ -175,7 +168,6 @@ struct ExhibitionDetailView: View {
     private func prepareShare() async {
         isPreparingShare = true
         defer { isPreparingShare = false }
-        shareExcludedTypes = nil
         let result = await ExhibitionShareService.makeShareURL(for: exhibition)
         switch result {
         case .success(let url):
@@ -200,33 +192,11 @@ struct ExhibitionDetailView: View {
     }
 
     private func shareFallbackText() {
-        shareExcludedTypes = nil
         var items: [Any] = [exhibition.title, exhibition.venue]
         if let url = exhibition.url?.absoluteString, !url.isEmpty {
             items.append(url)
         }
         shareItem = ShareItem(items: items)
-    }
-
-    private func shareAirDrop() {
-        guard let fileURL = ExhibitionShareService.makeAirDropShareFile(for: exhibition) else {
-            shareErrorMessage = "共有ファイルを作成できませんでした。"
-            return
-        }
-        shareExcludedTypes = [
-            .postToFacebook,
-            .postToFlickr,
-            .postToTencentWeibo,
-            .postToTwitter,
-            .postToVimeo,
-            .postToWeibo,
-            .assignToContact,
-            .saveToCameraRoll,
-            .addToReadingList,
-            .openInIBooks,
-            .markupAsPDF
-        ]
-        shareItem = ShareItem(items: [fileURL])
     }
     
     private func deleteExhibition() {
