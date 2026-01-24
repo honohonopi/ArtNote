@@ -112,6 +112,42 @@ struct ExhibitionFormView: View {
     var body: some View {
         NavigationStack {
             Form {
+                PosterAutoInputSectionView(
+                    showPhotoPicker: $vm.showPhotoPicker,
+                    showCamera: $vm.showCamera,
+                    showPDFPicker: $vm.showPDFPicker
+                )
+                .onChange(of: vm.selectedItems) { _, newItems in
+                    guard !newItems.isEmpty else { return }
+                    Task {
+                        let limited = Array(newItems.prefix(2))
+                        var images: [UIImage] = []
+                        for item in limited {
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let image = UIImage(data: data) {
+                                images.append(image)
+                            }
+                        }
+                        if images.isEmpty {
+                            await MainActor.run {
+                                vm.ocrAlertMessage = "画像の読み込みに失敗しました。"
+                                vm.showOcrAlert = true
+                                vm.selectedItems = []
+                            }
+                            return
+                        }
+                        await vm.handlePickedImages(images, useAIExtraction: useAIExtraction)
+                        await MainActor.run {
+                            vm.selectedItems = []
+                        }
+                    }
+                }
+                .alert(vm.missingAlertMessage, isPresented: $vm.showMissingAlert) {
+                    Button("OK", role: .cancel) {}
+                }
+                .alert(vm.ocrAlertMessage ?? "", isPresented: $vm.showOcrAlert) {
+                    Button("OK", role: .cancel) {}
+                }
                 BasicInfoSectionView(
                     title: $vm.title,
                     venue: $vm.venue,
@@ -170,42 +206,6 @@ struct ExhibitionFormView: View {
                             vm.showSpecialOpeningEditor = true
                         }
                     )
-                }
-                PosterAutoInputSectionView(
-                    showPhotoPicker: $vm.showPhotoPicker,
-                    showCamera: $vm.showCamera,
-                    showPDFPicker: $vm.showPDFPicker
-                )
-                .onChange(of: vm.selectedItems) { _, newItems in
-                    guard !newItems.isEmpty else { return }
-                    Task {
-                        let limited = Array(newItems.prefix(2))
-                        var images: [UIImage] = []
-                        for item in limited {
-                            if let data = try? await item.loadTransferable(type: Data.self),
-                               let image = UIImage(data: data) {
-                                images.append(image)
-                            }
-                        }
-                        if images.isEmpty {
-                            await MainActor.run {
-                                vm.ocrAlertMessage = "画像の読み込みに失敗しました。"
-                                vm.showOcrAlert = true
-                                vm.selectedItems = []
-                            }
-                            return
-                        }
-                        await vm.handlePickedImages(images, useAIExtraction: useAIExtraction)
-                        await MainActor.run {
-                            vm.selectedItems = []
-                        }
-                    }
-                }
-                .alert(vm.missingAlertMessage, isPresented: $vm.showMissingAlert) {
-                    Button("OK", role: .cancel) {}
-                }
-                .alert(vm.ocrAlertMessage ?? "", isPresented: $vm.showOcrAlert) {
-                    Button("OK", role: .cancel) {}
                 }
                 ColorSelectionSectionView(pickedColor: $vm.pickedColor, autoColor: $vm.autoColor)
             }
@@ -290,13 +290,17 @@ struct ExhibitionFormView: View {
             }
         }
         .photosPicker(isPresented: $vm.showPhotoPicker, selection: $vm.selectedItems, maxSelectionCount: 2, matching: .images)
-        .sheet(isPresented: $vm.showCamera) {
-            CameraPicker { image in
-                if let img = image {
-                    Task { await vm.handlePickedImage(img, useAIExtraction: useAIExtraction) }
+        .fullScreenCover(isPresented: $vm.showCamera) {
+            CameraCaptureView(
+                maxCount: 2,
+                onCancel: {
+                    vm.showCamera = false
+                },
+                onComplete: { images in
+                    vm.showCamera = false
+                    Task { await vm.handlePickedImages(images, useAIExtraction: useAIExtraction) }
                 }
-                vm.showCamera = false
-            }
+            )
         }
         .sheet(item: $vm.pdfSelection) { selection in
             PDFPagePickerSheet(
@@ -333,6 +337,11 @@ private struct PosterAutoInputSectionView: View {
         Section("ポスターから展覧会情報を自動入力") {
             Menu {
                 Button {
+                    showPDFPicker = true
+                } label: {
+                    Label("PDFを選ぶ", systemImage: "doc.text")
+                }
+                Button {
                     showPhotoPicker = true
                 } label: {
                     Label("写真ライブラリから選ぶ", systemImage: "photo.on.rectangle")
@@ -344,11 +353,6 @@ private struct PosterAutoInputSectionView: View {
                     } label: {
                         Label("カメラ", systemImage: "camera.viewfinder")
                     }
-                }
-                Button {
-                    showPDFPicker = true
-                } label: {
-                    Label("PDFを選ぶ", systemImage: "doc.text")
                 }
             } label: {
                 Label("ポスターを読み込む", systemImage: "text.viewfinder")
