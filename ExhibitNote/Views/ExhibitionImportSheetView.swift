@@ -50,7 +50,7 @@ struct ExhibitionImportSheetView: View {
                             .foregroundStyle(.secondary)
                         Text("会期")
                         Spacer()
-                        Text("\(payload.startDate)〜\(payload.endDate)")
+                        Text("\(formatYMD(payload.startDate)) ~ \(formatYMD(payload.endDate))")
                             .foregroundStyle(.secondary)
                     }
                     if let address = payload.address, !address.isEmpty {
@@ -370,6 +370,18 @@ struct ExhibitionImportSheetView: View {
         default:
             return raw
         }
+    }
+
+    private func formatYMD(_ value: String) -> String {
+        let raw = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = raw.split(separator: "-")
+        if parts.count == 3 {
+            let y = parts[0]
+            let m = parts[1].count == 1 ? "0\(parts[1])" : String(parts[1])
+            let d = parts[2].count == 1 ? "0\(parts[2])" : String(parts[2])
+            return "\(y)/\(m)/\(d)"
+        }
+        return raw.replacingOccurrences(of: "-", with: "/")
     }
 
     private func dateRuleText(_ rule: DateRuleRecord) -> String {
