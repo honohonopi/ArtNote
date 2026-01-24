@@ -214,29 +214,35 @@ struct ExhibitionDetailDetailsSectionView: View {
     }
 
     private func ruleListRow(title: String, rules: [DateRule]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top) {
             Text(title)
                 .foregroundStyle(.secondary)
-            ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
-                Text(vm.dateRuleText(rule))
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
+                    Text(vm.dateRuleText(rule))
+                }
             }
         }
     }
 
     private func specialOpeningsRow(title: String, openings: [SpecialOpening]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top) {
             Text(title)
                 .foregroundStyle(.secondary)
-            ForEach(Array(openings.enumerated()), id: \.offset) { idx, opening in
-                if idx > 0 {
-                    Divider()
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(vm.specialOpeningText(opening))
-                    if let last = opening.lastEntryTime, !last.isEmpty {
-                        Text("最終入場 \(last)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                ForEach(Array(openings.enumerated()), id: \.offset) { idx, opening in
+                    if idx > 0 {
+                        Divider()
+                    }
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(vm.specialOpeningText(opening))
+                        if let last = opening.lastEntryTime, !last.isEmpty {
+                            Text("最終入場 \(last)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
