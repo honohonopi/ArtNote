@@ -200,6 +200,10 @@ struct HomeSettingsView: View {
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     @AppStorage("userDisplayName") private var userDisplayName = ""
     @AppStorage("includeVisitedSuggestions") private var includeVisitedSuggestions = false
+    @AppStorage("notifyDeadlineEnabled") private var notifyDeadlineEnabled = true
+    @AppStorage("notifyDeadlineHour") private var notifyDeadlineHour: Int = 9
+    @AppStorage("notifyDeadlineMinute") private var notifyDeadlineMinute: Int = 0
+    @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)]) private var allExhibitions: [Exhibition]
 
     var body: some View {
         NavigationStack {
@@ -221,6 +225,42 @@ struct HomeSettingsView: View {
                 Section("提案") {
                     Toggle("訪問済みも提案に含める", isOn: $includeVisitedSuggestions)
                 }
+                Section {
+                    Toggle(isOn: $notifyDeadlineEnabled) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("会期終了の通知を受け取る")
+                            Text("会期終了1週間前と1日前に通知します")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    DatePicker(
+                        "通知時刻",
+                        selection: Binding(
+                            get: {
+                                Calendar.current.date(from: DateComponents(hour: notifyDeadlineHour, minute: notifyDeadlineMinute)) ?? Date()
+                            },
+                            set: { newValue in
+                                let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                                notifyDeadlineHour = comps.hour ?? 9
+                                notifyDeadlineMinute = comps.minute ?? 0
+                            }
+                        ),
+                        displayedComponents: .hourAndMinute
+                    )
+                    .disabled(!notifyDeadlineEnabled)
+                    .onChange(of: notifyDeadlineEnabled) { _, _ in
+                        rescheduleNotifications()
+                    }
+                    .onChange(of: notifyDeadlineHour) { _, _ in
+                        rescheduleNotifications()
+                    }
+                    .onChange(of: notifyDeadlineMinute) { _, _ in
+                        rescheduleNotifications()
+                    }
+                } header: {
+                    Text("通知")
+                }
             }
             .navigationTitle("設定")
             .toolbar {
@@ -228,6 +268,17 @@ struct HomeSettingsView: View {
                     Button("閉じる") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func rescheduleNotifications() {
+        let time = DateComponents(hour: notifyDeadlineHour, minute: notifyDeadlineMinute)
+        Task {
+            await ReminderService.shared.rescheduleAllNotifications(
+                exhibitions: allExhibitions,
+                isEnabled: notifyDeadlineEnabled,
+                notificationTime: time
+            )
         }
     }
 }

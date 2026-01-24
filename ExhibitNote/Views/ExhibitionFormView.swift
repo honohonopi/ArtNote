@@ -61,7 +61,11 @@ struct ExhibitionFormView: View {
         }
         
         context.insert(ex)
-        Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex) }
+        let notifyEnabled = UserDefaults.standard.bool(forKey: "notifyDeadlineEnabled")
+        let hour = UserDefaults.standard.integer(forKey: "notifyDeadlineHour")
+        let minute = UserDefaults.standard.integer(forKey: "notifyDeadlineMinute")
+        let time = DateComponents(hour: hour == 0 ? 9 : hour, minute: minute)
+        Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex, isEnabled: notifyEnabled, notificationTime: time) }
         dismiss()
     }
     
