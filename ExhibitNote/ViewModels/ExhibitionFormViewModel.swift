@@ -21,7 +21,7 @@ final class ExhibitionFormViewModel: ObservableObject {
     @Published var catalogTotalCountStr: String = ""
 
     @Published var showPhotoPicker = false
-    @Published var selectedItem: PhotosPickerItem? = nil
+    @Published var selectedItems: [PhotosPickerItem] = []
     @Published var ocrAlertMessage: String? = nil
     @Published var showOcrAlert = false
     @Published var showPDFPicker = false
@@ -406,6 +406,21 @@ final class ExhibitionFormViewModel: ObservableObject {
             ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
             showOcrAlert = true
         }
+    }
+
+    func handlePickedImages(_ images: [UIImage], useAIExtraction: Bool) async {
+        guard !images.isEmpty else { return }
+        if images.count == 1, let first = images.first {
+            await handlePickedImage(first, useAIExtraction: useAIExtraction)
+            return
+        }
+        let limited = Array(images.prefix(2))
+        guard let combined = combineImagesVertically(limited) else {
+            ocrAlertMessage = "画像の読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        await handlePickedImage(combined, useAIExtraction: useAIExtraction)
     }
 
     func autoResolveAddress(from venue: String) async {

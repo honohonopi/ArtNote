@@ -176,17 +176,28 @@ struct ExhibitionFormView: View {
                     showCamera: $vm.showCamera,
                     showPDFPicker: $vm.showPDFPicker
                 )
-                .onChange(of: vm.selectedItem) { _, newItem in
-                    guard let item = newItem else { return }
+                .onChange(of: vm.selectedItems) { _, newItems in
+                    guard !newItems.isEmpty else { return }
                     Task {
-                        if let data = try? await item.loadTransferable(type: Data.self),
-                           let image = UIImage(data: data) {
-                            await vm.handlePickedImage(image, useAIExtraction: useAIExtraction)
-                        } else {
+                        let limited = Array(newItems.prefix(2))
+                        var images: [UIImage] = []
+                        for item in limited {
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let image = UIImage(data: data) {
+                                images.append(image)
+                            }
+                        }
+                        if images.isEmpty {
                             await MainActor.run {
                                 vm.ocrAlertMessage = "画像の読み込みに失敗しました。"
                                 vm.showOcrAlert = true
+                                vm.selectedItems = []
                             }
+                            return
+                        }
+                        await vm.handlePickedImages(images, useAIExtraction: useAIExtraction)
+                        await MainActor.run {
+                            vm.selectedItems = []
                         }
                     }
                 }
@@ -278,7 +289,7 @@ struct ExhibitionFormView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $vm.showPhotoPicker, selection: $vm.selectedItem, matching: .images)
+        .photosPicker(isPresented: $vm.showPhotoPicker, selection: $vm.selectedItems, maxSelectionCount: 2, matching: .images)
         .sheet(isPresented: $vm.showCamera) {
             CameraPicker { image in
                 if let img = image {
