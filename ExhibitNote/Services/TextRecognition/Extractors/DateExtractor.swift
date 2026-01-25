@@ -1,5 +1,5 @@
 //
-//  DateParsingService.swift
+//  DateExtractor.swift
 //  ArtNote
 //
 //  Created by Honoka Nishiyama on 2025/10/03.
@@ -8,7 +8,7 @@
 // 日付抽出
 import Foundation
 
-struct DateParsingService {
+struct DateExtractor {
 
     // 最良1件
     static func extractDateRange(from text: String) -> (start: Date, end: Date)? {

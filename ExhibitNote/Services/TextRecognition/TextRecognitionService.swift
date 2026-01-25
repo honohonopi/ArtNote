@@ -18,7 +18,7 @@ enum TextRecognitionError: Error {
 struct TextRecognitionService {
 
     static func classifyFlyer(from image: UIImage) async throws
-    -> (rawText: String, lines: [FlyerClassifiedText]) {
+    -> (rawText: String, lines: [FlyerClassifiedText], usedFoundationModel: Bool) {
         let items = try await OCRTextRecognizer.recognizeText(from: image)
         let fullText = items.map(\.text).joined(separator: "\n")
 
@@ -27,24 +27,46 @@ struct TextRecognitionService {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
+        var usedFoundationModel = false
+        if #available(iOS 26.0, *) {
+            print("🤖 FoundationModels available: \(FoundationModelFlyerClassifier.isAvailable) (\(FoundationModelFlyerClassifier.availabilityDescription))")
+        }
+        if #available(iOS 26.0, *), FoundationModelFlyerClassifier.isAvailable {
+            do {
+                let lines = try await FoundationModelFlyerClassifier.classifyLines(lineStrings)
+                print("🤖 FoundationModels classify success: \(lines.count) lines")
+                usedFoundationModel = true
+                return (fullText, lines, usedFoundationModel)
+            } catch {
+                print("⚠️ FoundationModels classify failed: \(error)")
+            }
+        }
+
         do {
             let lines = try FlyerLineClassifier.classify(lines: lineStrings)
-            return (fullText, lines)
+            return (fullText, lines, usedFoundationModel)
         } catch {
             let fallback = lineStrings.map {
                 FlyerClassifiedText(text: $0, category: "other", confidence: 0)
             }
-            return (fullText, fallback)
+            return (fullText, fallback, usedFoundationModel)
         }
     }
 
-    static func extractFlyerFields(from image: UIImage) async throws -> FlyerExtractionResult {
-        let (raw, lines) = try await classifyFlyer(from: image)
-        return RuleBasedFlyerExtractor.extract(rawText: raw, lines: lines)
+    static func extractFlyerFields(from image: UIImage, basicOnly: Bool = false) async throws -> FlyerExtractionResult {
+        let (raw, lines, _) = try await classifyFlyer(from: image)
+        return RuleBasedFlyerExtractor.extract(rawText: raw, lines: lines, basicOnly: basicOnly)
     }
 
     static func extractFlyerFieldsWithAI(from image: UIImage) async throws -> FlyerExtractionResult {
         try await GeminiFlyerExtractor.extract(from: image)
+    }
+
+    static func extractFlyerFieldsWithMeta(from image: UIImage, basicOnly: Bool = false) async throws
+    -> (result: FlyerExtractionResult, usedFoundationModel: Bool) {
+        let (raw, lines, usedFoundationModel) = try await classifyFlyer(from: image)
+        let result = RuleBasedFlyerExtractor.extract(rawText: raw, lines: lines, basicOnly: basicOnly)
+        return (result, usedFoundationModel)
     }
 
     // ExtraInfo は flyerBasic に統合済み（単一リクエスト運用）

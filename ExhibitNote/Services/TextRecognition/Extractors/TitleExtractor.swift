@@ -1,5 +1,5 @@
 //
-//  TitleExtractionService.swift
+//  TitleExtractor.swift
 //  ArtNote
 //
 //  Created by Honoka Nishiyama on 2025/10/03.
@@ -8,7 +8,7 @@
 // 展覧会タイトル推定
 import Foundation
 
-struct TitleExtractionService {
+struct TitleExtractor {
     /// 展覧会名の候補（スコア降順）を返す
     static func candidates(from text: String) -> [String] {
         // よくあるキーワード

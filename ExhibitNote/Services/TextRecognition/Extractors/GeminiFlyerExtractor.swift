@@ -43,7 +43,7 @@ enum GeminiFlyerExtractor {
            let end = period?.endDate.flatMap(ISODateParser.parseISODate) {
             dateCandidates = [(start, end)]
         } else if let text = period?.periodText?.trimmed, !text.isEmpty {
-            dateCandidates = DateParsingService.candidates(from: text)
+            dateCandidates = DateExtractor.candidates(from: text)
         }
 
         let rawText = [

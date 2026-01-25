@@ -199,7 +199,7 @@ struct TextRecognitionService {
             }
 
             // ★ 期間っぽい文字列 → 強制的に period として採用
-            if DateParsingService.looksLikePeriodText(line.text) {
+            if DateExtractor.looksLikePeriodText(line.text) {
                 print("⚠️ force-keep low-conf period line: \"\(line.text)\" ")
 
                 // ★ label を period に上書きしたうえで残す
@@ -239,12 +239,12 @@ struct TextRecognitionService {
 
         let periodCore = periodRanked.filter { !isClosedInfo($0.text) }
 
-        // conf 上位から順に DateParsingService へ投げ、最初にパースできた候補群を採用
+        // conf 上位から順に DateExtractor へ投げ、最初にパースできた候補群を採用
         var dateCandidates: [(Date, Date)] = []
         if !periodCore.isEmpty {
             // 最大 6 行まで試す（必要なら調整）
             for cand in periodCore.prefix(6) {
-                let cands = DateParsingService.candidates(from: cand.text)
+                let cands = DateExtractor.candidates(from: cand.text)
                 print("[period-cand] \"\(cand.text)\" conf=\(String(format: "%.3f", cand.confidence)) -> \(cands.count) pairs")
                 if !cands.isEmpty {
                     dateCandidates = cands
@@ -267,7 +267,7 @@ struct TextRecognitionService {
 
         if dateCandidates.isEmpty {
             // まとめ文字列からも試す（行跨ぎ・装飾の影響に強い）
-            dateCandidates = DateParsingService.candidates(from: periodSource)
+            dateCandidates = DateExtractor.candidates(from: periodSource)
         }
         // === ここまで period 強化 ===
         
@@ -277,8 +277,8 @@ struct TextRecognitionService {
         let urlSource    = urlLines.isEmpty    ? raw : urlLines.joined(separator: "\n")
         
         // ④ 既存のヘルパー群をそのまま活かす
-        let titleCandidates = TitleExtractionService.candidates(from: titleSource)
-        let venueCandidates = VenueExtractionService.candidates(from: venueSource)
+        let titleCandidates = TitleExtractor.candidates(from: titleSource)
+        let venueCandidates = VenueExtractor.candidates(from: venueSource)
         let urlCandidates   = extractURLs(from: urlSource)
         
         return FlyerExtractionResult(
@@ -458,7 +458,7 @@ struct TextRecognitionService {
            let end = payload.endDate.flatMap(parseISODate) {
             dateCandidates = [(start, end)]
         } else if let period = payload.periodText?.trimmed, !period.isEmpty {
-            dateCandidates = DateParsingService.candidates(from: period)
+            dateCandidates = DateExtractor.candidates(from: period)
         }
 
         let rawText = [

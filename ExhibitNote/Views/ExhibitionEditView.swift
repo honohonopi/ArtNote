@@ -35,6 +35,7 @@ struct ExhibitionEditView: View {
                     endDate: $vm.endDate,
                     urlString: $vm.urlString,
                     isAIAnalyzing: false,
+                    isExtracting: false,
                     isApplyingAutoDates: vm.isApplyingAutoDates,
                     hasManuallyEditedDates: $vm.hasManuallyEditedDates,
                     onVenueSubmit: vm.triggerGeocoding,

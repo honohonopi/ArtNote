@@ -152,6 +152,19 @@ struct ExhibitionFormView: View {
                 .alert(vm.ocrAlertMessage ?? "", isPresented: $vm.showOcrAlert) {
                     Button("OK", role: .cancel) {}
                 }
+                .alert("この機能はApple Intelligenceが有効な対応端末で利用できます", isPresented: $vm.showFoundationModelUnavailableAlert) {
+                    Button("今後表示しない") {
+                        vm.suppressFoundationModelAlert()
+                    }
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("Apple Intelligenceをオンにすると、オフラインでもポスター画像から精度の高い情報を抽出できます。\n設定アプリ → Apple Intelligence & Siri → Apple Intelligence をオン\n反映に時間がかかる場合は、アプリを再起動してください。")
+                }
+                .alert("注意", isPresented: $vm.showFoundationModelDontShowWarning) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("今後この案内は表示されません。オフライン時の情報抽出の精度が下がる可能性があります。")
+                }
                 BasicInfoSectionView(
                     title: $vm.title,
                     venue: $vm.venue,
@@ -160,6 +173,7 @@ struct ExhibitionFormView: View {
                     endDate: $vm.endDate,
                     urlString: $vm.urlString,
                     isAIAnalyzing: vm.isAIAnalyzing,
+                    isExtracting: vm.isExtracting,
                     isApplyingAutoDates: vm.isApplyingAutoDates,
                     hasManuallyEditedDates: $vm.hasManuallyEditedDates,
                     onVenueSubmit: vm.triggerGeocoding,
@@ -216,7 +230,7 @@ struct ExhibitionFormView: View {
             .navigationTitle("展覧会を追加")
             .navigationBarTitleDisplayMode(.inline)
             .overlay(alignment: .top) {
-                AIAnalyzingToastView(isVisible: vm.isAIAnalyzing)
+                AIAnalyzingToastView(isVisible: vm.isExtracting)
             }
             .contentShape(Rectangle())
             .onTapGesture {
@@ -236,9 +250,12 @@ struct ExhibitionFormView: View {
                     titleOptions: vm.titleOptions,
                     venueOptions: vm.venueOptions,
                     dateOptions: vm.dateOptions,
+                    urlOptions: vm.urlOptions,
+                    showBasicOnlyNotice: vm.showBasicOnlyNotice,
                     selectedTitle: $vm.selectedTitle,
                     selectedVenue: $vm.selectedVenue,
                     selectedDateIndex: $vm.selectedDateIndex,
+                    selectedURL: $vm.selectedURL,
                     isApplyingAutoDates: $vm.isApplyingAutoDates,
                     hasManuallyEditedDates: $vm.hasManuallyEditedDates,
                     pendingAlertMessage: $vm.pendingAlertMessage,
@@ -247,6 +264,7 @@ struct ExhibitionFormView: View {
                     showReviewSheet: $vm.showReviewSheet,
                     title: $vm.title,
                     venue: $vm.venue,
+                    urlString: $vm.urlString,
                     startDate: $vm.startDate,
                     endDate: $vm.endDate,
                     ymdFormatter: ymdFormatter
@@ -510,7 +528,7 @@ private struct AIAnalyzingToastView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .scaleEffect(0.9)
-                Text("ポスターを解析中…")
+                Text("抽出中…")
                     .font(.subheadline)
             }
             .padding(.vertical, 8)
@@ -527,9 +545,12 @@ private struct ExtractionReviewSheetView: View {
     let titleOptions: [String]
     let venueOptions: [String]
     let dateOptions: [(Date, Date)]
+    let urlOptions: [String]
+    let showBasicOnlyNotice: Bool
     @Binding var selectedTitle: String?
     @Binding var selectedVenue: String?
     @Binding var selectedDateIndex: Int
+    @Binding var selectedURL: String?
     @Binding var isApplyingAutoDates: Bool
     @Binding var hasManuallyEditedDates: Bool
     @Binding var pendingAlertMessage: String?
@@ -538,6 +559,7 @@ private struct ExtractionReviewSheetView: View {
     @Binding var showReviewSheet: Bool
     @Binding var title: String
     @Binding var venue: String
+    @Binding var urlString: String
     @Binding var startDate: Date
     @Binding var endDate: Date
     let ymdFormatter: DateFormatter
@@ -545,6 +567,13 @@ private struct ExtractionReviewSheetView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if showBasicOnlyNotice {
+                    Section {
+                        Text("オフラインのため、基本情報のみを抽出しています。入館情報や開館情報は反映されません。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 if !titleOptions.isEmpty {
                     Section("展覧会名（候補）") {
                         ForEach(titleOptions, id: \.self) { t in
@@ -576,7 +605,7 @@ private struct ExtractionReviewSheetView: View {
                 if !dateOptions.isEmpty {
                     Section("会期（候補）") {
                         ForEach(Array(dateOptions.enumerated()), id: \.offset) { idx, pair in
-                            let label = "\(ymdFormatter.string(from: min(pair.0, pair.1))) 〜 \(ymdFormatter.string(from: max(pair.0, pair.1)))"
+                            let label = dateRangeLabel(pair)
                             HStack {
                                 Text(label)
                                 Spacer()
@@ -584,6 +613,20 @@ private struct ExtractionReviewSheetView: View {
                             }
                             .contentShape(Rectangle())
                             .onTapGesture { selectedDateIndex = idx }
+                        }
+                    }
+                }
+                if !urlOptions.isEmpty {
+                    Section("公式URL（候補）") {
+                        ForEach(urlOptions, id: \.self) { u in
+                            HStack {
+                                Text(u)
+                                    .lineLimit(2)
+                                Spacer()
+                                if selectedURL == u { Image(systemName: "checkmark") }
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture { selectedURL = u }
                         }
                     }
                 }
@@ -597,6 +640,7 @@ private struct ExtractionReviewSheetView: View {
                     Button("反映") {
                         if let t = selectedTitle { title = t }
                         if let v = selectedVenue { venue = v }
+                        if let u = selectedURL { urlString = u }
                         if dateOptions.indices.contains(selectedDateIndex) {
                             let p = dateOptions[selectedDateIndex]
                             isApplyingAutoDates = true
@@ -617,5 +661,11 @@ private struct ExtractionReviewSheetView: View {
                 }
             }
         }
+    }
+
+    private func dateRangeLabel(_ pair: (Date, Date)) -> String {
+        let start = min(pair.0, pair.1)
+        let end = max(pair.0, pair.1)
+        return "\(ymdFormatter.string(from: start)) 〜 \(ymdFormatter.string(from: end))"
     }
 }

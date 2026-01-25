@@ -1,5 +1,5 @@
 //
-//  VenueExtractionService.swift
+//  VenueExtractor.swift
 //  ArtNote
 //
 //  Created by Honoka Nishiyama on 2025/10/03.
@@ -8,7 +8,7 @@
 // 会場名推定
 import Foundation
 
-struct VenueExtractionService {
+struct VenueExtractor {
     static func candidates(from text: String) -> [String] {
         let keywordsJP = ["美術館","博物館","ミュージアム","ギャラリー","資料館","記念館"]
         let keywordsEN = ["Museum","Art Museum","Gallery","Memorial","Center"]

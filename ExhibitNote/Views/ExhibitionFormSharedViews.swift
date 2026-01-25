@@ -16,6 +16,7 @@ struct BasicInfoSectionView: View {
     @Binding var endDate: Date
     @Binding var urlString: String
     let isAIAnalyzing: Bool
+    let isExtracting: Bool
     let isApplyingAutoDates: Bool
     @Binding var hasManuallyEditedDates: Bool
     let onVenueSubmit: () -> Void
@@ -28,7 +29,7 @@ struct BasicInfoSectionView: View {
                     .foregroundStyle(.secondary)
                 TextField("展覧会名", text: $title)
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
@@ -39,7 +40,7 @@ struct BasicInfoSectionView: View {
                     .foregroundStyle(.secondary)
                 TextField("会場", text: $venue)
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
@@ -53,7 +54,7 @@ struct BasicInfoSectionView: View {
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
@@ -77,7 +78,7 @@ struct BasicInfoSectionView: View {
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
@@ -94,7 +95,7 @@ struct BasicInfoSectionView: View {
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }
@@ -107,7 +108,7 @@ struct BasicInfoSectionView: View {
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .overlay(alignment: .trailing) {
-                        if isAIAnalyzing {
+                        if isAIAnalyzing || isExtracting {
                             ProgressView()
                                 .scaleEffect(0.7)
                         }

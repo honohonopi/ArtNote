@@ -24,21 +24,27 @@ final class ExhibitionFormViewModel: ObservableObject {
     @Published var selectedItems: [PhotosPickerItem] = []
     @Published var ocrAlertMessage: String? = nil
     @Published var showOcrAlert = false
+    @Published var showFoundationModelUnavailableAlert = false
+    @Published var showFoundationModelDontShowWarning = false
     @Published var showPDFPicker = false
     @Published var pdfSelection: PDFSelection? = nil
 
     @Published var titleOptions: [String] = []
     @Published var venueOptions: [String] = []
     @Published var dateOptions: [(Date, Date)] = []
+    @Published var urlOptions: [String] = []
 
     @Published var selectedTitle: String?
     @Published var selectedVenue: String?
     @Published var selectedDateIndex: Int = 0
+    @Published var selectedURL: String?
     @Published var hasManuallyEditedDates = false
     @Published var isApplyingAutoDates = false
     @Published var isAIAnalyzing = false
+    @Published var isExtracting = false
 
     @Published var showReviewSheet = false
+    @Published var showBasicOnlyNotice = false
     @Published var showMissingAlert = false
     @Published var missingAlertMessage: String = ""
     @Published var pendingAlertMessage: String? = nil
@@ -297,18 +303,30 @@ final class ExhibitionFormViewModel: ObservableObject {
         do {
             let result: FlyerExtractionResult
             var usedAI = false
+            isExtracting = true
+            showBasicOnlyNotice = false
+            defer { isExtracting = false }
             if useAIExtraction {
                 isAIAnalyzing = true
+            }
+            if !useAIExtraction {
+                checkFoundationModelAvailability()
             }
             if useAIExtraction {
                 do {
                     result = try await TextRecognitionService.extractFlyerFieldsWithAI(from: image)
                     usedAI = true
                 } catch {
-                    result = try await TextRecognitionService.extractFlyerFields(from: image)
+                    let fallback = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true)
+                    result = fallback.result
+                    usedAI = false
+                    showBasicOnlyNotice = true
                 }
             } else {
-                result = try await TextRecognitionService.extractFlyerFields(from: image)
+                let fallback = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true)
+                result = fallback.result
+                usedAI = false
+                showBasicOnlyNotice = true
             }
 
             if let thumb = ImageThumbService.makeThumbnail(image) {
@@ -322,6 +340,7 @@ final class ExhibitionFormViewModel: ObservableObject {
             titleOptions = result.titleCandidates
             venueOptions = result.venueCandidates
             dateOptions = result.dateCandidates
+            urlOptions = result.urlCandidates
 
             if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let firstTitle = result.titleCandidates.first {
@@ -345,6 +364,7 @@ final class ExhibitionFormViewModel: ObservableObject {
                let firstURL = result.urlCandidates.first {
                 urlString = firstURL
             }
+            selectedURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : urlString
 
             let missingTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let missingVenue = venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -369,43 +389,66 @@ final class ExhibitionFormViewModel: ObservableObject {
                 } else {
                     print("🤖 AI venue candidate: <empty>")
                 }
+            } else if addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      let firstVenue = result.venueCandidates.first,
+                      !firstVenue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                await autoResolveAddress(from: firstVenue)
             }
 
-            if let schedule = result.schedule {
-                scheduleOpenTime = schedule.openTime
-                scheduleCloseTime = schedule.closeTime
-                scheduleLastEntryTime = schedule.lastEntryTime
-                scheduleClosedWeekdays = schedule.closedWeekdays
-                scheduleHolidayHandling = schedule.holidayHandling
-                scheduleClosedDateRules = schedule.closedDateRules
-                scheduleOpenDateRules = schedule.openDateRules.filter { rule in
-                    if case .date = rule.rule { return true }
-                    return false
+            if usedAI {
+                if let schedule = result.schedule {
+                    scheduleOpenTime = schedule.openTime
+                    scheduleCloseTime = schedule.closeTime
+                    scheduleLastEntryTime = schedule.lastEntryTime
+                    scheduleClosedWeekdays = schedule.closedWeekdays
+                    scheduleHolidayHandling = schedule.holidayHandling
+                    scheduleClosedDateRules = schedule.closedDateRules
+                    scheduleOpenDateRules = schedule.openDateRules.filter { rule in
+                        if case .date = rule.rule { return true }
+                        return false
+                    }
+                    scheduleSpecialOpenings = schedule.specialOpenings
+                } else {
+                    scheduleOpenTime = nil
+                    scheduleCloseTime = nil
+                    scheduleLastEntryTime = nil
+                    scheduleClosedWeekdays = []
+                    scheduleHolidayHandling = nil
+                    scheduleClosedDateRules = []
+                    scheduleOpenDateRules = []
+                    scheduleSpecialOpenings = []
                 }
-                scheduleSpecialOpenings = schedule.specialOpenings
-            } else {
-                scheduleOpenTime = nil
-                scheduleCloseTime = nil
-                scheduleLastEntryTime = nil
-                scheduleClosedWeekdays = []
-                scheduleHolidayHandling = nil
-                scheduleClosedDateRules = []
-                scheduleOpenDateRules = []
-                scheduleSpecialOpenings = []
-            }
-            if let fees = result.admissionFees, !fees.isEmpty {
-                admissionFees = fees
-            }
-            if let reservation = result.reservationRequired {
-                reservationRequired = reservation
+                if let fees = result.admissionFees, !fees.isEmpty {
+                    admissionFees = fees
+                }
+                if let reservation = result.reservationRequired {
+                    reservationRequired = reservation
+                }
             }
         } catch {
             if useAIExtraction {
                 isAIAnalyzing = false
             }
+            isExtracting = false
             ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
             showOcrAlert = true
         }
+    }
+
+    private func checkFoundationModelAvailability() {
+        guard #available(iOS 26.0, *) else { return }
+        let suppressKey = "foundationModelUnavailableDontShow"
+        if UserDefaults.standard.bool(forKey: suppressKey) { return }
+        if !FoundationModelFlyerClassifier.isAvailable,
+           FoundationModelFlyerClassifier.isSupportedButDisabled() {
+            showFoundationModelUnavailableAlert = true
+        }
+    }
+
+    func suppressFoundationModelAlert() {
+        UserDefaults.standard.set(true, forKey: "foundationModelUnavailableDontShow")
+        showFoundationModelUnavailableAlert = false
+        showFoundationModelDontShowWarning = true
     }
 
     func handlePickedImages(_ images: [UIImage], useAIExtraction: Bool) async {
