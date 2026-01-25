@@ -12,6 +12,7 @@ import Vision
 struct RecognizedTextItem {
     let text: String
     let confidence: Float
+    let boundingBoxHeight: CGFloat
 }
 
 enum OCRTextRecognizer {
@@ -31,7 +32,11 @@ enum OCRTextRecognizer {
                 let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
                 let items: [RecognizedTextItem] = observations.compactMap { obs in
                     guard let best = obs.topCandidates(1).first else { return nil }
-                    return RecognizedTextItem(text: best.string, confidence: best.confidence)
+                    return RecognizedTextItem(
+                        text: best.string,
+                        confidence: best.confidence,
+                        boundingBoxHeight: obs.boundingBox.height
+                    )
                 }
 
                 if items.isEmpty {

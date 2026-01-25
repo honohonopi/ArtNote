@@ -369,8 +369,12 @@ final class ExhibitionFormViewModel: ObservableObject {
             let missingTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let missingVenue = venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let missingDates = dateOptions.isEmpty
+            let hasMultipleCandidates = titleOptions.count > 1 ||
+                venueOptions.count > 1 ||
+                dateOptions.count > 1 ||
+                urlOptions.count > 1
 
-            if missingTitle || missingVenue || missingDates {
+            if missingTitle || missingVenue || missingDates || hasMultipleCandidates {
                 showReviewSheet = true
             }
             if useAIExtraction {

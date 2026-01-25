@@ -9,8 +9,33 @@
 import Foundation
 
 struct TitleExtractor {
+    struct LineInfo {
+        let text: String
+        let index: Int
+        let height: Double
+    }
+
     /// 展覧会名の候補（スコア降順）を返す
     static func candidates(from text: String) -> [String] {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let infos = lines.enumerated().map { LineInfo(text: $0.element, index: $0.offset, height: 0) }
+        return candidates(from: infos)
+    }
+
+    static func candidates(from items: [RecognizedTextItem], fallbackText: String) -> [String] {
+        let infos = items.enumerated().map {
+            LineInfo(text: $0.element.text, index: $0.offset, height: Double($0.element.boundingBoxHeight))
+        }
+        let filtered = infos.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if filtered.isEmpty {
+            return candidates(from: fallbackText)
+        }
+        return candidates(from: filtered)
+    }
+
+    private static func candidates(from lines: [LineInfo]) -> [String] {
         // よくあるキーワード
         let titleHintsJP = ["展覧会","特別展","企画展","美術展","回顧展","コレクション展","◯◯展"]
         let titleHintsEN = ["Exhibition","Special Exhibition","Retrospective","Collection","Show"]
@@ -18,14 +43,12 @@ struct TitleExtractor {
         let excludeWords = ["主催","共催","後援","協力","開館","開室","観覧料","料金",
                             "休館","Open","Closed","Admission","Ticket","Access"]
 
-        let lines = text.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
         var scored: [(str: String, score: Int)] = []
+        let maxHeight = lines.map(\.height).max() ?? 0
 
-        for (idx, line) in lines.enumerated() {
-            var s = line
+        for info in lines {
+            let idx = info.index
+            var s = info.text
             s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             let sFlat = s.replacingOccurrences(of: " ", with: "")
 
@@ -35,10 +58,15 @@ struct TitleExtractor {
             if excludeWords.contains(where: { s.localizedCaseInsensitiveContains($0) }) { continue }
 
             var score = 0
+            let sizeBonus: Int = {
+                guard maxHeight > 0 else { return 0 }
+                let ratio = min(max(info.height / maxHeight, 0), 1)
+                return Int((ratio * 6).rounded())
+            }()
             // 日本語の「◯◯展」
             if let m = regexMatch(sFlat, pattern: "(.{2,40}?展)($|[^\\u3040-\\u30FF\\u4E00-\\u9FFF])") {
                 let cand = postTrim(m)
-                score += 6 + min(cand.count / 4, 6)
+                score += 6 + min(cand.count / 4, 6) + sizeBonus
                 scored.append((cand, score + headlineBonus(idx)))
                 continue
             }
@@ -46,7 +74,7 @@ struct TitleExtractor {
             if let m = regexMatch(s, pattern: "[\\\"\\“\\”\\‘\\’\\'\\「\\『](.+?)[\\\"\\“\\”\\‘\\’\\'\\」\\』]") {
                 let cand = postTrim(m)
                 if looksLikeTitle(cand) {
-                    score += 5 + min(cand.count / 5, 5)
+                    score += 5 + min(cand.count / 5, 5) + sizeBonus
                     scored.append((cand, score + headlineBonus(idx)))
                     continue
                 }
@@ -54,7 +82,7 @@ struct TitleExtractor {
             // 英語タイトル + Exhibition
             if let m = regexMatch(s, pattern: "(.{2,60}?(Exhibition|Retrospective|Show))") {
                 let cand = postTrim(m)
-                score += 5 + min(cand.count / 5, 5)
+                score += 5 + min(cand.count / 5, 5) + sizeBonus
                 scored.append((cand, score + headlineBonus(idx)))
                 continue
             }
@@ -62,7 +90,14 @@ struct TitleExtractor {
             if titleHintsJP.contains(where: { s.contains($0) }) ||
                 titleHintsEN.contains(where: { s.localizedCaseInsensitiveContains($0) }) {
                 let cand = postTrim(s)
-                score += 3 + min(cand.count / 6, 4)
+                score += 3 + min(cand.count / 6, 4) + sizeBonus
+                scored.append((cand, score + headlineBonus(idx)))
+                continue
+            }
+
+            if sizeBonus >= 4, looksLikeTitleCandidate(s) {
+                let cand = postTrim(s)
+                score += 2 + sizeBonus
                 scored.append((cand, score + headlineBonus(idx)))
             }
         }
@@ -122,5 +157,13 @@ struct TitleExtractor {
     private static func looksLikeTitle(_ s: String) -> Bool {
         let genericWords = ["開催","お知らせ","Information","Notice","News"]
         return !genericWords.contains(where: { s.localizedCaseInsensitiveContains($0) })
+    }
+
+    private static func looksLikeTitleCandidate(_ s: String) -> Bool {
+        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.count < 2 || t.count > 40 { return false }
+        if hasNoise(t) { return false }
+        if !looksLikeTitle(t) { return false }
+        return true
     }
 }

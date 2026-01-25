@@ -9,7 +9,12 @@ import Foundation
 
 enum RuleBasedFlyerExtractor {
 
-    static func extract(rawText: String, lines: [FlyerClassifiedText], basicOnly: Bool = false) -> FlyerExtractionResult {
+    static func extract(
+        rawText: String,
+        lines: [FlyerClassifiedText],
+        ocrItems: [RecognizedTextItem] = [],
+        basicOnly: Bool = false
+    ) -> FlyerExtractionResult {
         let adjustedLines = lines.map { line in
             if looksLikePeriodLine(line.text), !looksLikeFeeText(line.text), !looksLikeScheduleText(line.text) {
                 return FlyerClassifiedText(text: line.text, category: "period", confidence: max(line.confidence, 0.55))
@@ -114,7 +119,7 @@ enum RuleBasedFlyerExtractor {
         let venueSource = shouldUseVenueLines(venueLines) ? venueLines.joined(separator: "\n") : rawText
         let urlSource = urlLines.isEmpty ? rawText : urlLines.joined(separator: "\n")
 
-        let titleCandidates = TitleExtractor.candidates(from: titleSource)
+        let titleCandidates = TitleExtractor.candidates(from: ocrItems, fallbackText: titleSource)
         let venueCandidates = VenueExtractor.candidates(from: venueSource)
         let urlCandidates = URLExtractor.extractURLs(from: urlSource)
 
