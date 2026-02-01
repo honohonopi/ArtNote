@@ -101,7 +101,6 @@ final class ExhibitionFormViewModel: ObservableObject {
         let id = UUID()
         let url: URL
         let pageCount: Int
-        let useAIExtraction: Bool
     }
 
     func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
@@ -136,7 +135,7 @@ final class ExhibitionFormViewModel: ObservableObject {
         }
     }
 
-    func preparePickedPDF(_ url: URL, useAIExtraction: Bool) {
+    func preparePickedPDF(_ url: URL) {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed { url.stopAccessingSecurityScopedResource() }
@@ -147,13 +146,13 @@ final class ExhibitionFormViewModel: ObservableObject {
             return
         }
         if document.pageCount <= 1 {
-            Task { await handlePickedPDF(url, pageIndex: 0, useAIExtraction: useAIExtraction) }
+            Task { await handlePickedPDF(url, pageIndex: 0) }
             return
         }
-        pdfSelection = PDFSelection(url: url, pageCount: document.pageCount, useAIExtraction: useAIExtraction)
+        pdfSelection = PDFSelection(url: url, pageCount: document.pageCount)
     }
 
-    func handlePickedPDF(_ url: URL, pageIndex: Int, useAIExtraction: Bool) async {
+    func handlePickedPDF(_ url: URL, pageIndex: Int) async {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed { url.stopAccessingSecurityScopedResource() }
@@ -168,10 +167,10 @@ final class ExhibitionFormViewModel: ObservableObject {
             showOcrAlert = true
             return
         }
-        await handlePickedImage(image, useAIExtraction: useAIExtraction)
+        await handlePickedImage(image)
     }
 
-    func handlePickedPDF(_ url: URL, pageIndices: [Int], useAIExtraction: Bool) async {
+    func handlePickedPDF(_ url: URL, pageIndices: [Int]) async {
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed { url.stopAccessingSecurityScopedResource() }
@@ -192,7 +191,7 @@ final class ExhibitionFormViewModel: ObservableObject {
             showOcrAlert = true
             return
         }
-        await handlePickedImage(combined, useAIExtraction: useAIExtraction)
+        await handlePickedImage(combined)
     }
 
     private func renderPDFPage(_ page: PDFPage, maxSide: CGFloat = 2000) -> UIImage? {
@@ -299,34 +298,23 @@ final class ExhibitionFormViewModel: ObservableObject {
         return !label.isEmpty && priceIsValid && (hasPrice || !noteText.isEmpty)
     }
 
-    func handlePickedImage(_ image: UIImage, useAIExtraction: Bool) async {
+    func handlePickedImage(_ image: UIImage) async {
         do {
             let result: FlyerExtractionResult
             var usedAI = false
             isExtracting = true
             showBasicOnlyNotice = false
             defer { isExtracting = false }
-            if useAIExtraction {
-                isAIAnalyzing = true
-            }
-            if !useAIExtraction {
-                checkFoundationModelAvailability()
-            }
-            if useAIExtraction {
-                do {
-                    result = try await TextRecognitionService.extractFlyerFieldsWithAI(from: image)
-                    usedAI = true
-                } catch {
-                    let fallback = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true)
-                    result = fallback.result
-                    usedAI = false
-                    showBasicOnlyNotice = true
-                }
-            } else {
+            isAIAnalyzing = true
+            do {
+                result = try await TextRecognitionService.extractFlyerFieldsWithAI(from: image)
+                usedAI = true
+            } catch {
                 let fallback = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true)
                 result = fallback.result
                 usedAI = false
                 showBasicOnlyNotice = true
+                checkFoundationModelAvailability()
             }
 
             if let thumb = ImageThumbService.makeThumbnail(image) {
@@ -377,11 +365,9 @@ final class ExhibitionFormViewModel: ObservableObject {
             if missingTitle || missingVenue || missingDates || hasMultipleCandidates {
                 showReviewSheet = true
             }
-            if useAIExtraction {
-                isAIAnalyzing = false
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.impactOccurred()
-            }
+            isAIAnalyzing = false
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
 
             if usedAI {
                 if let venuePOI = result.venuePOI, !venuePOI.isEmpty {
@@ -430,9 +416,7 @@ final class ExhibitionFormViewModel: ObservableObject {
                 }
             }
         } catch {
-            if useAIExtraction {
-                isAIAnalyzing = false
-            }
+            isAIAnalyzing = false
             isExtracting = false
             ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
             showOcrAlert = true
@@ -455,10 +439,10 @@ final class ExhibitionFormViewModel: ObservableObject {
         showFoundationModelDontShowWarning = true
     }
 
-    func handlePickedImages(_ images: [UIImage], useAIExtraction: Bool) async {
+    func handlePickedImages(_ images: [UIImage]) async {
         guard !images.isEmpty else { return }
         if images.count == 1, let first = images.first {
-            await handlePickedImage(first, useAIExtraction: useAIExtraction)
+            await handlePickedImage(first)
             return
         }
         let limited = Array(images.prefix(2))
@@ -467,7 +451,7 @@ final class ExhibitionFormViewModel: ObservableObject {
             showOcrAlert = true
             return
         }
-        await handlePickedImage(combined, useAIExtraction: useAIExtraction)
+        await handlePickedImage(combined)
     }
 
     func autoResolveAddress(from venue: String) async {

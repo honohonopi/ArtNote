@@ -18,7 +18,6 @@ import UIKit
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @AppStorage("useAIExtraction") private var useAIExtraction = false
 
     @StateObject private var vm = ExhibitionFormViewModel()
 
@@ -140,7 +139,7 @@ struct ExhibitionFormView: View {
                             }
                             return
                         }
-                        await vm.handlePickedImages(images, useAIExtraction: useAIExtraction)
+                        await vm.handlePickedImages(images)
                         await MainActor.run {
                             vm.selectedItems = []
                         }
@@ -324,7 +323,7 @@ struct ExhibitionFormView: View {
                 },
                 onComplete: { images in
                     vm.showCamera = false
-                    Task { await vm.handlePickedImages(images, useAIExtraction: useAIExtraction) }
+                    Task { await vm.handlePickedImages(images) }
                 }
             )
         }
@@ -334,7 +333,7 @@ struct ExhibitionFormView: View {
                 pageCount: selection.pageCount,
                 onSelect: { indices in
                     vm.pdfSelection = nil
-                    Task { await vm.handlePickedPDF(selection.url, pageIndices: indices, useAIExtraction: selection.useAIExtraction) }
+                    Task { await vm.handlePickedPDF(selection.url, pageIndices: indices) }
                 },
                 onCancel: {
                     vm.pdfSelection = nil
@@ -345,7 +344,7 @@ struct ExhibitionFormView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
-                vm.preparePickedPDF(url, useAIExtraction: useAIExtraction)
+                vm.preparePickedPDF(url)
             case .failure:
                 vm.ocrAlertMessage = "PDFの読み込みに失敗しました。"
                 vm.showOcrAlert = true
@@ -533,7 +532,7 @@ private struct AIAnalyzingToastView: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
-            .background(Color.blue.opacity(0.2), in: Capsule())
+            .background(Color(red: 163 / 255, green: 212 / 255, blue: 1), in: Capsule())
             .padding(.top, 0)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -569,7 +568,7 @@ private struct ExtractionReviewSheetView: View {
             Form {
                 if showBasicOnlyNotice {
                     Section {
-                        Text("オフラインのため、基本情報のみを抽出しています。入館情報や開館情報は反映されません。")
+                        Text("高精度の自動抽出が利用できなかったため、基本情報のみ反映しています。入館情報や開館情報は反映されません。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

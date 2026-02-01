@@ -196,7 +196,6 @@ struct HomeNearbySectionView: View {
 
 struct HomeSettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("useAIExtraction") private var useAIExtraction = false
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     @AppStorage("userDisplayName") private var userDisplayName = ""
     @AppStorage("includeVisitedSuggestions") private var includeVisitedSuggestions = false
@@ -210,20 +209,7 @@ struct HomeSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("ユーザー名") {
-                    TextField("名前を入力", text: $userDisplayName)
-                        .textInputAutocapitalization(.words)
-                }
-                Section("画像解析") {
-                    Toggle("AIを使って精度を上げる", isOn: $useAIExtraction)
-                }
-                Section("ユーザー種別") {
-                    Picker("種別", selection: $userAdmissionCategoryRaw) {
-                        ForEach(UserTicketCategory.allCases) { category in
-                            Text(category.displayName).tag(category.rawValue)
-                        }
-                    }
-                }
+                // v0では未使用のため非表示
                 Section("提案") {
                     Toggle("訪問済みも提案に含める", isOn: $includeVisitedSuggestions)
                 }
@@ -274,6 +260,7 @@ struct HomeSettingsView: View {
                 }
             }
             .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }

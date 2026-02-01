@@ -20,6 +20,7 @@ struct ExhibitionDetailView: View {
     @State private var isPreparingShare = false
     @State private var shareErrorMessage: String?
     @State private var showShareFallbackPrompt = false
+    @State private var showShareNotice = false
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -51,7 +52,7 @@ struct ExhibitionDetailView: View {
                 Menu {
                     // 共有
                     Button {
-                        Task { await prepareShare() }
+                        showShareNotice = true
                     } label: {
                         Label(isPreparingShare ? "リンク作成中..." : "リンクで共有",
                               systemImage: "link")
@@ -116,6 +117,16 @@ struct ExhibitionDetailView: View {
             Button("OK") { shareErrorMessage = nil }
         } message: {
             Text(shareErrorMessage ?? "")
+        }
+        .confirmationDialog(
+            "共有リンクの有効期限は7日です",
+            isPresented: $showShareNotice,
+            titleVisibility: .visible
+        ) {
+            Button("共有する") { Task { await prepareShare() } }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("7日を過ぎるとリンクは開けなくなります。")
         }
         .confirmationDialog(
             "共有URLが長すぎるため作成できませんでした。\nタイトル・会場・公式リンクのみ共有しますか？",

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 import UIKit
 
 struct ExhibitionMemoView: View {
@@ -18,6 +19,8 @@ struct ExhibitionMemoView: View {
     @State private var memoPlainText: String = ""
     @State private var memoAction: MemoAction?
     @State private var showCamera = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var showNumberSuggestions = false
     @State private var previewItem: ImagePreviewItem?
 
@@ -71,6 +74,7 @@ struct ExhibitionMemoView: View {
                 .ignoresSafeArea()
             }
         }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .sheet(item: $previewItem) { item in
             NavigationStack {
                 ZStack {
@@ -100,6 +104,11 @@ struct ExhibitionMemoView: View {
             exhibition.memoData = newValue
             exhibition.memoUpdatedAt = .now
         }
+        .onChange(of: selectedPhotoItem) { _, newValue in
+            Task {
+                await insertPhoto(from: newValue)
+            }
+        }
     }
 
     private var memoKeyboardBar: some View {
@@ -110,6 +119,13 @@ struct ExhibitionMemoView: View {
                 showCamera = true
             } label: {
                 toolbarItem(label: "カメラ", systemImage: "camera")
+            }
+            Spacer()
+            Button {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                showPhotoPicker = true
+            } label: {
+                toolbarItem(label: "写真", systemImage: "photo.on.rectangle")
             }
             Spacer()
             Button {
@@ -163,25 +179,54 @@ struct ExhibitionMemoView: View {
         let suggestions = MemoNumberSuggestionGenerator.suggestions(from: memoPlainText)
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Text("候補:")
-                    .font(.caption)
+                Text("作品番号")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 2)
                 ForEach(suggestions, id: \.self) { value in
                     Button {
                         memoAction = .insertText("#\(value) ")
                         showNumberSuggestions = false
                     } label: {
                         Text("#\(value)")
-                            .font(.caption)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .background(Color(uiColor: .systemGray5), in: Capsule())
+                            .font(.caption.weight(.semibold))
+                            .padding(.vertical, 7)
+                            .padding(.horizontal, 12)
+                            .foregroundStyle(.primary)
+                            .background(
+                                Capsule()
+                                    .fill(Color(uiColor: .secondarySystemBackground))
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 1)
+                            )
                     }
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color(uiColor: .systemBackground))
+            .padding(.vertical, 10)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .systemBackground),
+                        Color(uiColor: .systemBackground).opacity(0.95)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+    }
+
+    private func insertPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        if let data = try? await item.loadTransferable(type: Data.self),
+           let image = UIImage(data: data) {
+            memoAction = .insertImage(image)
+        }
+        await MainActor.run {
+            selectedPhotoItem = nil
         }
     }
 }
@@ -258,13 +303,30 @@ private struct MemoRichTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: UITextView, context: Context) {
-        let attributed = Self.attributedString(from: data)
-        if uiView.attributedText != attributed {
-            context.coordinator.isSettingText = true
-            uiView.attributedText = attributed
-            context.coordinator.isSettingText = false
+        let hasMarkedText = uiView.markedTextRange != nil
+        let bodyFont = UIFont.preferredFont(forTextStyle: .body)
+        if uiView.font != bodyFont {
+            uiView.font = bodyFont
         }
-        context.coordinator.refreshThumbnailAttachments(in: uiView)
+        if uiView.typingAttributes[.font] == nil {
+            uiView.typingAttributes[.font] = bodyFont
+        }
+        let attributed = Self.attributedString(from: data)
+        if !hasMarkedText && uiView.attributedText != attributed {
+            let isEditing = uiView.isFirstResponder
+            if !isEditing {
+                context.coordinator.isSettingText = true
+                let selection = uiView.selectedRange
+                let offset = uiView.contentOffset
+                uiView.attributedText = attributed
+                uiView.selectedRange = selection
+                uiView.contentOffset = offset
+                context.coordinator.isSettingText = false
+            }
+        }
+        if !hasMarkedText {
+            context.coordinator.refreshThumbnailAttachments(in: uiView)
+        }
         context.coordinator.updateAccessory(accessoryView, for: uiView)
         if let action = action {
             DispatchQueue.main.async {
@@ -308,6 +370,7 @@ private struct MemoRichTextView: UIViewRepresentable {
             guard !isSettingText else { return }
             parent.data = Self.data(from: textView.attributedText)
             parent.onTextChange(textView.text)
+            ensureCaretVisible(in: textView)
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -367,42 +430,43 @@ private struct MemoRichTextView: UIViewRepresentable {
             }
             data.wrappedValue = Self.data(from: textView.attributedText)
             onTextChange(textView.text)
+            if case .insertImage = action {
+                ensureCaretVisible(in: textView)
+            }
         }
 
         private func insertText(_ text: String, in textView: UITextView) {
             let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
             let attr = NSAttributedString(string: text, attributes: [.font: font])
-            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
             let range = textView.selectedRange
-            mutable.replaceCharacters(in: range, with: attr)
-            textView.attributedText = mutable
+            textView.textStorage.replaceCharacters(in: range, with: attr)
             let cursor = range.location + attr.length
             textView.selectedRange = NSRange(location: cursor, length: 0)
         }
 
         private func insertImage(_ image: UIImage, in textView: UITextView) {
-            let attachment = NSTextAttachment()
             let targetSize = Self.thumbnailSize(for: image)
             let renderer = UIGraphicsImageRenderer(size: targetSize)
             let resized = renderer.image { _ in
                 image.draw(in: CGRect(origin: .zero, size: targetSize))
             }
+            let resizedData = resized.pngData()
+            let attachment = NSTextAttachment(data: resizedData, ofType: "public.png")
             attachment.image = resized
             attachment.bounds = CGRect(origin: .zero, size: targetSize)
             let attr = NSAttributedString(attachment: attachment)
             let font = textView.font ?? UIFont.preferredFont(forTextStyle: .body)
             let newline = NSAttributedString(string: "\n", attributes: [.font: font])
-            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
             let range = textView.selectedRange
             let insert = NSMutableAttributedString()
             insert.append(newline)
             insert.append(attr)
             insert.append(newline)
-            mutable.replaceCharacters(in: range, with: insert)
-            textView.attributedText = mutable
+            textView.textStorage.replaceCharacters(in: range, with: insert)
             let cursor = range.location + newline.length + attr.length + newline.length
             textView.selectedRange = NSRange(location: cursor, length: 0)
             textView.typingAttributes = [.font: font]
+            ensureCaretVisible(in: textView)
         }
 
         private static func data(from attributed: NSAttributedString) -> Data {
@@ -421,6 +485,7 @@ private struct MemoRichTextView: UIViewRepresentable {
         }
 
         func refreshThumbnailAttachments(in textView: UITextView) {
+            if textView.markedTextRange != nil { return }
             let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
             var didChange = false
             mutable.enumerateAttribute(.attachment, in: NSRange(location: 0, length: mutable.length)) { value, range, _ in
@@ -431,13 +496,25 @@ private struct MemoRichTextView: UIViewRepresentable {
                     image.draw(in: CGRect(origin: .zero, size: targetSize))
                 }
                 if attachment.bounds.size != targetSize || attachment.image?.size != resized.size {
-                    attachment.image = resized
-                    attachment.bounds = CGRect(origin: .zero, size: targetSize)
+                    let resizedData = resized.pngData()
+                    let newAttachment = NSTextAttachment(data: resizedData, ofType: "public.png")
+                    newAttachment.image = resized
+                    newAttachment.bounds = CGRect(origin: .zero, size: targetSize)
+                    mutable.replaceCharacters(in: range, with: NSAttributedString(attachment: newAttachment))
                     didChange = true
                 }
             }
             if didChange {
-                textView.attributedText = mutable
+                let selection = textView.selectedRange
+                if textView.isFirstResponder {
+                    textView.textStorage.setAttributedString(mutable)
+                    textView.selectedRange = selection
+                } else {
+                    let offset = textView.contentOffset
+                    textView.attributedText = mutable
+                    textView.selectedRange = selection
+                    textView.contentOffset = offset
+                }
             }
         }
 
@@ -446,6 +523,13 @@ private struct MemoRichTextView: UIViewRepresentable {
             let maxHeight: CGFloat = 160
             let scale = min(maxWidth / image.size.width, maxHeight / image.size.height, 1)
             return CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        }
+
+        private func ensureCaretVisible(in textView: UITextView) {
+            let range = textView.selectedRange
+            if range.location != NSNotFound {
+                textView.scrollRangeToVisible(range)
+            }
         }
     }
 }

@@ -64,7 +64,7 @@ struct ContentView: View {
             return "共有リンクが無効です。"
         }
         if items.contains(where: { $0.name == "id" }) {
-            return "共有内容を取得できませんでした。ネットワーク接続を確認してください。"
+            return "共有内容を取得できませんでした。リンクの有効期限（7日）が切れている可能性があります。ネットワーク接続も確認してください。"
         }
         if items.contains(where: { $0.name == "data" }) {
             return "共有データを読み込めませんでした。リンクが壊れている可能性があります。"
