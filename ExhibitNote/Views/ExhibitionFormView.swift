@@ -18,6 +18,7 @@ import UIKit
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @StateObject private var writeState = ExhibitionWriteState()
 
     @StateObject private var vm = ExhibitionFormViewModel()
 
@@ -59,13 +60,10 @@ struct ExhibitionFormView: View {
             ex.setColor(ui)
         }
         
-        context.insert(ex)
-        let notifyEnabled = UserDefaults.standard.bool(forKey: "notifyDeadlineEnabled")
-        let hour = UserDefaults.standard.integer(forKey: "notifyDeadlineHour")
-        let minute = UserDefaults.standard.integer(forKey: "notifyDeadlineMinute")
-        let time = DateComponents(hour: hour == 0 ? 9 : hour, minute: minute)
-        Task { await ReminderService.shared.scheduleDeadlineNotifications(for: ex, isEnabled: notifyEnabled, notificationTime: time) }
-        dismiss()
+        writeState.run {
+            try await ExhibitionPersistenceService(context: context).insert(ex)
+            dismiss()
+        }
     }
     
     private var hasScheduleInfo: Bool {
@@ -244,6 +242,7 @@ struct ExhibitionFormView: View {
                         .disabled(vm.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vm.venue.isEmpty)
                 }
             }
+            .exhibitionWriteFeedback(writeState)
             .sheet(isPresented: $vm.showReviewSheet) {
                 ExtractionReviewSheetView(
                     titleOptions: vm.titleOptions,

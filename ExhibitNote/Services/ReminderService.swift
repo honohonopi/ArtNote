@@ -12,6 +12,13 @@ final class ReminderService {
     static let shared = ReminderService()
     private init() {}
     
+    func cancelDeadlineNotifications(exhibitionID: String) {
+        let center = UNUserNotificationCenter.current()
+        let identifiers = ["d7_\(exhibitionID)", "d1_\(exhibitionID)"]
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
     func requestAuthorization() async throws {
         _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
     }

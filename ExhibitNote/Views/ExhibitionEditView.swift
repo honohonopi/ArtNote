@@ -15,6 +15,7 @@ import UniformTypeIdentifiers
 
 struct ExhibitionEditView: View {
     @Environment(\.modelContext) private var context
+    @StateObject private var writeState = ExhibitionWriteState()
     @Environment(\.dismiss) private var dismiss
     let exhibition: Exhibition
     @StateObject private var vm: ExhibitionEditViewModel
@@ -143,9 +144,12 @@ struct ExhibitionEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
-                        vm.applyChanges(to: exhibition)
-                        try? context.save()
-                        dismiss()
+                        writeState.run {
+                            try await ExhibitionPersistenceService(context: context).update(exhibition) {
+                                vm.applyChanges(to: exhibition)
+                            }
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -201,6 +205,7 @@ struct ExhibitionEditView: View {
                 }
             }
         }
+        .exhibitionWriteFeedback(writeState)
     }
 
     private func reservationStatusText(_ value: Bool?) -> String {

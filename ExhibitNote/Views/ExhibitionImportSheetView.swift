@@ -12,6 +12,7 @@ struct ExhibitionImportSheetView: View {
     let onComplete: () -> Void
 
     @Environment(\.modelContext) private var context
+    @StateObject private var writeState = ExhibitionWriteState()
     @Environment(\.dismiss) private var dismiss
     @State private var posterThumbData: Data?
     @State private var isLoadingPoster = false
@@ -265,6 +266,7 @@ struct ExhibitionImportSheetView: View {
                 }
             }
         }
+        .exhibitionWriteFeedback(writeState)
         .task {
             await loadPosterThumb()
         }
@@ -305,10 +307,11 @@ struct ExhibitionImportSheetView: View {
             ex.scheduleOpenDateRules = schedule.openDateRules
             ex.scheduleSpecialOpenings = schedule.specialOpenings
         }
-        context.insert(ex)
-        try? context.save()
-        dismiss()
-        onComplete()
+        writeState.run {
+            try await ExhibitionPersistenceService(context: context).insert(ex)
+            dismiss()
+            onComplete()
+        }
     }
 
     @ViewBuilder

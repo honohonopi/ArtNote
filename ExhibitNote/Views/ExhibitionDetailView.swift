@@ -12,6 +12,7 @@ import SwiftData
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
     @Environment(\.modelContext) private var context
+    @StateObject private var writeState = ExhibitionWriteState()
     @Environment(\.dismiss) private var dismiss
 
     @StateObject private var vm: ExhibitionDetailViewModel
@@ -36,6 +37,7 @@ struct ExhibitionDetailView: View {
             ExhibitionDetailDetailsSectionView(vm: vm, userAdmissionCategoryRaw: userAdmissionCategoryRaw)
         }
         
+        .exhibitionWriteFeedback(writeState)
         .navigationTitle("詳細")
         .sheet(isPresented: $vm.showPlanner) {
             AddVisitEventSheetView(
@@ -211,16 +213,9 @@ struct ExhibitionDetailView: View {
     }
     
     private func deleteExhibition() {
-        do {
-            // 展覧会本体を削除
-            context.delete(exhibition)
-            try context.save()
-            
-            // 画面を閉じる（一覧やカレンダーは @Query 経由で自動更新）
+        writeState.run(deleting: true) {
+            try ExhibitionPersistenceService(context: context).delete(exhibition)
             dismiss()
-        } catch {
-            // TODO: アラート表示など（必要なら）
-            print("Delete failed:", error)
         }
     }
     
