@@ -11,7 +11,7 @@ struct DayTimelineView: View {
     let date: Date
     let exhibitions: [Exhibition]
     @ObservedObject var viewModel: DayTimelineViewModel
-    @AppStorage("includeVisitedSuggestions") private var includeVisitedSuggestions = false
+    @ObservedObject private var settingsStore = SettingsStore.shared
     @State private var showSuggestionActions = false
     @State private var selectedSuggestion: TimelineSuggestion?
     @State private var addVisitTarget: AddVisitEventTarget?
@@ -346,7 +346,7 @@ struct DayTimelineView: View {
         )
         var suggestions: [TimelineSuggestion] = []
         for exhibition in exhibitions {
-            if !includeVisitedSuggestions, exhibition.visited {
+            if !settingsStore.includeVisitedSuggestions, exhibition.visited {
                 continue
             }
             guard case let .open(openTime, closeTime, _) = ExhibitionScheduleUtils.openingStatus(

@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @State private var incomingPayload: ExhibitionSharePayload?
     @State private var shareOpenErrorMessage: String?
 
@@ -20,6 +22,10 @@ struct ContentView: View {
                 .tabItem { Label("会期カレンダー", systemImage: "calendar") }
             ExhibitionsView()
                 .tabItem { Label("展覧会リスト", systemImage: "list.bullet") }
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await ReminderService.shared.retryPendingEndingSoonNotifications(in: context)
         }
         .onOpenURL { url in
             handleIncomingURL(url)

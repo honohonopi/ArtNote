@@ -20,7 +20,7 @@ struct ExhibitionPersistenceService {
     func delete(_ exhibition: Exhibition) throws {
         let id = exhibition.id
         try commit { context.delete(exhibition) }
-        ReminderService.shared.cancelDeadlineNotifications(exhibitionID: id)
+        ReminderService.shared.cancelEndingSoonNotifications(exhibitionID: id)
     }
 
     private func commit(
@@ -88,13 +88,11 @@ struct ExhibitionPersistenceService {
     }
 
     private func refreshNotifications(for exhibition: Exhibition) async {
-        let defaults = UserDefaults.standard
-        let hour = (defaults.object(forKey: "notifyDeadlineHour") as? Int) ?? 9
-        let minute = defaults.integer(forKey: "notifyDeadlineMinute")
-        await ReminderService.shared.scheduleDeadlineNotifications(
+        let settings = SettingsStore.shared.endingSoonNotificationSettings
+        await ReminderService.shared.scheduleEndingSoonNotifications(
             for: exhibition,
-            isEnabled: defaults.bool(forKey: "notifyDeadlineEnabled"),
-            notificationTime: DateComponents(hour: hour, minute: minute)
+            isEnabled: settings.isEnabled,
+            notificationTime: settings.notificationTime
         )
     }
 }
