@@ -290,7 +290,6 @@
 				CODE_SIGN_ENTITLEMENTS = ExhibitNote/ExhibitNote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
 				DEVELOPMENT_TEAM = C99SPRR28W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -330,7 +329,6 @@
 				CODE_SIGN_ENTITLEMENTS = ExhibitNote/ExhibitNote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ExhibitNote/Preview Content\"";
 				DEVELOPMENT_TEAM = C99SPRR28W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
