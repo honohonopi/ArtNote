@@ -13,19 +13,9 @@ enum OpeningStatus {
 }
 
 enum ExhibitionScheduleUtils {
-    private static let tokyoTimeZone = TimeZone(identifier: "Asia/Tokyo")!
-    private static let jpLocale = Locale(identifier: "ja_JP")
-    
-    static var tokyoCalendar: Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = tokyoTimeZone
-        cal.locale = jpLocale
-        return cal
-    }
-    
     /// 日本の祝日判定（振替休日を含む）
     static func isJapaneseHoliday(_ date: Date) -> Bool {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         // NOTE: Calendar.Component.isHoliday が未提供の SDK では常に false になります。
         // iOS 18 SDK で利用可能になったら .isHoliday を含めて判定してください。
         _ = cal
@@ -35,7 +25,7 @@ enum ExhibitionScheduleUtils {
     
     /// 指定日から次の平日を返す（週末・祝日をスキップ）
     static func nextBusinessDay(after date: Date) -> Date {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         var cursor = cal.startOfDay(for: date)
         while true {
             guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { return cursor }
@@ -45,7 +35,7 @@ enum ExhibitionScheduleUtils {
     }
     
     static func openingStatus(on date: Date, exhibition: Exhibition) -> OpeningStatus {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         let day = cal.startOfDay(for: date)
         
         if day < cal.startOfDay(for: exhibition.startDate) ||
@@ -100,12 +90,12 @@ enum ExhibitionScheduleUtils {
     }
     
     private static func isSameDay(_ lhs: Date, _ rhs: Date) -> Bool {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         return cal.isDate(lhs, inSameDayAs: rhs)
     }
     
     private static func isBusinessDay(_ date: Date) -> Bool {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         let weekday = cal.component(.weekday, from: date)
         let isWeekend = weekday == 1 || weekday == 7
         return !isWeekend && !isJapaneseHoliday(date)
@@ -113,7 +103,7 @@ enum ExhibitionScheduleUtils {
     
     // 祝日の翌平日（振替休館）かどうか
     private static func isHolidayFollowupClosedDay(_ date: Date) -> Bool {
-        let cal = tokyoCalendar
+        let cal = Calendar.japan
         var cursor = cal.date(byAdding: .day, value: -1, to: date)!
         var foundHoliday = false
         while true {
@@ -205,9 +195,8 @@ enum ExhibitionScheduleUtils {
     }
 
     private static func parseYMD(_ text: String) -> Date? {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = tokyoTimeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }

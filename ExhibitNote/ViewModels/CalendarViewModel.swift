@@ -13,7 +13,7 @@ final class CalendarViewModel: ObservableObject {
     @Published var showDaySheet: Bool = false
 
     func exhibitions(on date: Date, from all: [Exhibition]) -> [Exhibition] {
-        let cal = Calendar.current
+        let cal = Calendar.japan
         let d = cal.startOfDay(for: date)
         return all.filter { ex in
             cal.startOfDay(for: ex.startDate) <= d && d <= cal.startOfDay(for: ex.endDate)

@@ -141,10 +141,10 @@ struct DateExtractor {
     private static func pairMonthDay(in line: String) -> (Date, Date)? {
         let pattern = #"(\d{1,2})[\/\.-](\d{1,2}).{0,10}?"# + sepRegexPattern() + #".{0,10}?(\d{1,2})[\/\.-](\d{1,2})"#
         if let m = firstMatch(in: line, pattern: pattern), m.count == 5 {
-            let year = Calendar.current.component(.year, from: Date())
+            let year = Calendar.japan.component(.year, from: Date())
             guard let a = makeDate(y: String(year), mo: m[1], d: m[2]) else { return nil }
             if var b = makeDate(y: String(year), mo: m[3], d: m[4]) {
-                if b < a, let nb = Calendar.current.date(byAdding: .year, value: 1, to: b) { b = nb }
+                if b < a, let nb = Calendar.japan.date(byAdding: .year, value: 1, to: b) { b = nb }
                 return ordered(a, b)
             }
         }
@@ -155,11 +155,11 @@ struct DateExtractor {
     private static func pairMonthDayEndOnly(in line: String) -> (Date, Date)? {
         let pattern = #"(\d{1,2})[\/\.-](\d{1,2}).{0,8}?"# + sepRegexPattern() + #".{0,8}?(\d{1,2})(?![\/\.-])"#
         if let m = firstMatch(in: line, pattern: pattern), m.count == 4 {
-            let year = Calendar.current.component(.year, from: Date())
+            let year = Calendar.japan.component(.year, from: Date())
             guard let a = makeDate(y: String(year), mo: m[1], d: m[2]) else { return nil }
             // 終了は開始と同じ月で試し、前後関係で年またぎ補正
             if var b = makeDate(y: String(year), mo: m[1], d: m[3]) {
-                if b < a, let nb = Calendar.current.date(byAdding: .year, value: 1, to: b) { b = nb }
+                if b < a, let nb = Calendar.japan.date(byAdding: .year, value: 1, to: b) { b = nb }
                 return ordered(a, b)
             }
         }
@@ -202,19 +202,19 @@ struct DateExtractor {
 
     private static func makeDate(y: String, mo: String, d: String) -> Date? {
         var c = DateComponents()
-        c.calendar = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone.current
+        c.calendar = Calendar.japan
+        c.timeZone = Calendar.japan.timeZone
         c.year = Int(y); c.month = Int(mo); c.day = Int(d)
         return c.date
     }
 
     private static func makeDateInferringYear(baseYear: Int, mo: String, d: String, fromStart start: Date) -> Date? {
         var c = DateComponents()
-        c.calendar = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone.current
+        c.calendar = Calendar.japan
+        c.timeZone = Calendar.japan.timeZone
         c.year = baseYear; c.month = Int(mo); c.day = Int(d)
         guard var date = c.date else { return nil }
-        if date < start, let nb = Calendar.current.date(byAdding: .year, value: 1, to: date) { date = nb }
+        if date < start, let nb = Calendar.japan.date(byAdding: .year, value: 1, to: date) { date = nb }
         return date
     }
 

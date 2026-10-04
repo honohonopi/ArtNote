@@ -73,7 +73,7 @@ struct BasicInfoSectionView: View {
                 DatePicker("開始日", selection: $startDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
-                    .environment(\.calendar, Calendar(identifier: .gregorian))
+                    .environment(\.calendar, Calendar.japan)
                     .onChange(of: startDate) { _ in
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
@@ -90,7 +90,7 @@ struct BasicInfoSectionView: View {
                 DatePicker("終了日", selection: $endDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
-                    .environment(\.calendar, Calendar(identifier: .gregorian))
+                    .environment(\.calendar, Calendar.japan)
                     .onChange(of: endDate) { _ in
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
@@ -347,7 +347,7 @@ struct ScheduleEditorListView: View {
                     }
                     Button("期間") {
                         let start = Date()
-                        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+                        let end = Calendar.japan.date(byAdding: .day, value: 1, to: start) ?? start
                         scheduleClosedDateRules.append(DateRule(rule: .range(start: start, end: end), note: nil))
                     }
                 } label: {
@@ -398,7 +398,7 @@ struct ScheduleEditorListView: View {
                     .buttonStyle(.plain)
                 }
                 .environment(\.locale, Locale(identifier: "ja_JP"))
-                .environment(\.calendar, Calendar(identifier: .gregorian))
+                .environment(\.calendar, Calendar.japan)
             }
             HStack {
                 Text("特別開館日")
@@ -435,7 +435,7 @@ struct ScheduleEditorListView: View {
                     .buttonStyle(.plain)
                 }
                 .environment(\.locale, Locale(identifier: "ja_JP"))
-                .environment(\.calendar, Calendar(identifier: .gregorian))
+                .environment(\.calendar, Calendar.japan)
             }
             HStack {
                 Text("特別開館時間")
@@ -532,14 +532,14 @@ struct ScheduleEditorListView: View {
 
     private func timeDate(from text: String?) -> Date? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
         return formatter.date(from: text)
     }
 
     private func timeString(from date: Date) -> String {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
@@ -697,7 +697,7 @@ struct SpecialOpeningEditorSheetView: View {
             }
         }
         .environment(\.locale, Locale(identifier: "ja_JP"))
-        .environment(\.calendar, Calendar(identifier: .gregorian))
+        .environment(\.calendar, Calendar.japan)
     }
 
     private func weekdayShortLabel(_ weekday: Weekday) -> String {
@@ -736,14 +736,14 @@ struct SpecialOpeningEditorSheetView: View {
 
     private func timeDate(from text: String?) -> Date? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
         return formatter.date(from: text)
     }
 
     private func timeString(from date: Date) -> String {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)

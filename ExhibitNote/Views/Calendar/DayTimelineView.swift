@@ -28,7 +28,7 @@ struct DayTimelineView: View {
     private let suggestionCarouselPadding: CGFloat = 16
 
     private var dfTime: DateFormatter {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "HH:mm"
         return f
@@ -338,7 +338,7 @@ struct DayTimelineView: View {
     }
 
     private func minutesFromStart(of date: Date) -> Double {
-        let calendar = Calendar.current
+        let calendar = Calendar.japan
         let components = calendar.dateComponents([.hour, .minute], from: date)
         let hours = Double(components.hour ?? 0)
         let minutes = Double(components.minute ?? 0)
@@ -350,11 +350,11 @@ struct DayTimelineView: View {
     }
 
     private var dayStart: Date {
-        Calendar.current.startOfDay(for: date)
+        Calendar.japan.startOfDay(for: date)
     }
 
     private var dayEnd: Date {
-        Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? date
+        Calendar.japan.date(byAdding: .day, value: 1, to: dayStart) ?? date
     }
 
     private func timeTextRange(for suggestion: TimelineSuggestion) -> String {
@@ -453,7 +453,7 @@ private struct SuggestionBlockView: View {
     let badgeText: String?
 
     private var dfTime: DateFormatter {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "HH:mm"
         return f

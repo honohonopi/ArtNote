@@ -47,7 +47,7 @@ final class ExhibitionEditViewModel: ObservableObject {
     @Published var specialOpeningMode: SpecialOpeningInputMode = .date
     @Published var draftSpecialOpeningDate = Date()
     @Published var draftSpecialOpeningStartDate = Date()
-    @Published var draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    @Published var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
     @Published var draftSpecialOpeningWeekdays: Set<Weekday> = []
     @Published var draftSpecialOpeningOpenTime = "10:00"
     @Published var draftSpecialOpeningCloseTime = "17:00"
@@ -189,7 +189,7 @@ final class ExhibitionEditViewModel: ObservableObject {
             specialOpeningMode = .date
             draftSpecialOpeningDate = Date()
             draftSpecialOpeningStartDate = Date()
-            draftSpecialOpeningEndDate = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+            draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
             draftSpecialOpeningWeekdays = []
             draftSpecialOpeningOpenTime = scheduleOpenTime ?? "10:00"
             draftSpecialOpeningCloseTime = scheduleCloseTime ?? "17:00"

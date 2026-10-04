@@ -11,9 +11,9 @@ struct EndingSoonNotificationSettings: Equatable {
 
     /// DatePickerとの受け渡し用。設定として保持するのは時と分だけ。
     var pickerDate: Date {
-        get { Calendar.current.date(from: notificationTime) ?? Date() }
+        get { Calendar.japan.date(from: notificationTime) ?? Date() }
         set {
-            let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+            let components = Calendar.japan.dateComponents([.hour, .minute], from: newValue)
             guard let hour = components.hour, let minute = components.minute else { return }
             self.hour = hour
             self.minute = minute

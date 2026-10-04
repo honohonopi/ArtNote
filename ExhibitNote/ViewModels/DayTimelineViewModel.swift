@@ -66,7 +66,7 @@ final class DayTimelineViewModel: ObservableObject {
         isLoading = true
         authorizationErrorMessage = nil
         Task {
-            let calendar = Calendar.current
+            let calendar = Calendar.japan
             let start = calendar.startOfDay(for: date)
             let end = calendar.date(byAdding: .day, value: 1, to: start) ?? date
             let fetched = await Task.detached {

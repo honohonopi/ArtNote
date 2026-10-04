@@ -9,29 +9,16 @@ import SwiftUI
 import UIKit
 
 struct AddVisitEventSheetView: View {
-    let exhibition: Exhibition
-    let initialStart: Date
-    let availableEnd: Date?
-
     @Environment(\.dismiss) private var dismiss
-    @State private var visitDate: Date
-    @State private var startTime: Date
-    @State private var endTime: Date
-    @State private var showSuccess = false
-    @State private var isSaving = false
-    @State private var errorMessage: String?
-    @State private var addedStartDate: Date?
+    @Environment(\.openURL) private var openURL
+    @StateObject private var vm: AddVisitEventViewModel
 
     init(exhibition: Exhibition, initialStart: Date, availableEnd: Date? = nil) {
-        self.exhibition = exhibition
-        self.initialStart = initialStart
-        self.availableEnd = availableEnd
-        let calendar = Calendar(identifier: .gregorian)
-        let twoHoursLater = initialStart.addingTimeInterval(2 * 3600)
-        let cappedEnd = availableEnd.map { min($0, twoHoursLater) } ?? twoHoursLater
-        _visitDate = State(initialValue: calendar.startOfDay(for: initialStart))
-        _startTime = State(initialValue: initialStart)
-        _endTime = State(initialValue: cappedEnd)
+        _vm = StateObject(wrappedValue: AddVisitEventViewModel(
+            exhibition: exhibition,
+            initialStart: initialStart,
+            availableEnd: availableEnd
+        ))
     }
 
     var body: some View {
@@ -43,37 +30,37 @@ struct AddVisitEventSheetView: View {
                         .foregroundStyle(.secondary)
                 }
                 Section("訪問日時") {
-                    if availableEnd != nil {
+                    if vm.availableEnd != nil {
                         LabeledContent("訪問日") {
-                            Text(initialStart, format: .dateTime.year().month().day())
+                            Text(vm.initialStart.ymdString)
                         }
                     } else {
                         DatePicker(
                             "訪問日",
-                            selection: $visitDate,
+                            selection: Binding(get: { vm.visitDate }, set: vm.updateVisitDate),
                             displayedComponents: [.date]
                         )
                         .datePickerStyle(.compact)
                         .environment(\.locale, Locale(identifier: "ja_JP"))
-                        .environment(\.calendar, Calendar(identifier: .gregorian))
-                        .environment(\.timeZone, TimeZone(identifier: "Asia/Tokyo")!)
+                        .environment(\.calendar, Calendar.japan)
+                        .environment(\.timeZone, Calendar.japan.timeZone)
                     }
                     DatePicker(
                         "開始",
-                        selection: $startTime,
-                        in: startTimeRange,
+                        selection: Binding(get: { vm.startTime }, set: vm.updateStartTime),
+                        in: vm.startTimeRange,
                         displayedComponents: [.hourAndMinute]
                     )
                     DatePicker(
                         "終了",
-                        selection: $endTime,
-                        in: endTimeRange,
+                        selection: Binding(get: { vm.endTime }, set: vm.updateEndTime),
+                        in: vm.endTimeRange,
                         displayedComponents: [.hourAndMinute]
                     )
                 }
-                if let availableEnd {
+                if let availableEnd = vm.availableEnd {
                     Section {
-                        Text("空き時間: \(timeRangeText(start: initialStart, end: availableEnd))")
+                        Text("空き時間: \(timeRangeText(start: vm.initialStart, end: availableEnd))")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Text("この空き時間の範囲内で、開始・終了時刻を選べます。")
@@ -82,51 +69,25 @@ struct AddVisitEventSheetView: View {
                     }
                 }
             }
-            .disabled(isSaving)
+            .disabled(vm.isSaving)
             .navigationTitle("予定に追加")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }
+                        .disabled(vm.isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("追加") {
-                        Task { await addEvent() }
+                        Task { await vm.addEvent() }
                     }
-                    .disabled(isSaving || !canSave)
+                    .disabled(!vm.canSave)
                 }
             }
-            .onChange(of: visitDate) { _, newValue in
-                let calendar = Calendar(identifier: .gregorian)
-                let start = merge(date: newValue, time: startTime, calendar: calendar)
-                let end = merge(date: newValue, time: endTime, calendar: calendar)
-                startTime = start
-                endTime = max(end, start.addingTimeInterval(30 * 60))
-            }
-            .onChange(of: startTime) { _, newValue in
-                if let availableEnd {
-                    if endTime <= newValue {
-                        endTime = min(newValue.addingTimeInterval(30 * 60), availableEnd)
-                    }
-                    return
-                }
-                let start = merge(date: visitDate, time: newValue, calendar: .init(identifier: .gregorian))
-                let end = merge(date: visitDate, time: endTime, calendar: .init(identifier: .gregorian))
-                startTime = start
-                if end < start {
-                    endTime = start.addingTimeInterval(30 * 60)
-                }
-            }
-            .onChange(of: endTime) { _, newValue in
-                guard availableEnd == nil else { return }
-                let end = merge(date: visitDate, time: newValue, calendar: .init(identifier: .gregorian))
-                let start = merge(date: visitDate, time: startTime, calendar: .init(identifier: .gregorian))
-                endTime = max(end, start)
-            }
-            .alert("カレンダーに追加しました", isPresented: $showSuccess) {
+            .alert("カレンダーに追加しました", isPresented: $vm.showSuccess) {
                 Button("OK") { dismiss() }
                 Button("純正カレンダーで見る") {
-                    if let target = addedStartDate {
+                    if let target = vm.addedStartDate {
                         openCalendar(at: target)
                     }
                     dismiss()
@@ -135,89 +96,31 @@ struct AddVisitEventSheetView: View {
                 Text("純正カレンダーで確認できます")
             }
             .alert("予定の追加に失敗しました", isPresented: Binding(get: {
-                errorMessage != nil
+                vm.errorMessage != nil
             }, set: { newValue in
-                if !newValue { errorMessage = nil }
+                if !newValue { vm.clearError() }
             })) {
+                if vm.shouldOpenCalendarSettings {
+                    Button("設定アプリを開く") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            openURL(url)
+                        }
+                    }
+                }
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(errorMessage ?? "")
+                Text(vm.errorMessage ?? "")
             }
         }
-    }
-
-    private var startTimeRange: ClosedRange<Date> {
-        guard let availableEnd else { return .distantPast ... .distantFuture }
-        // 分単位の入力で、終了より前の時刻だけを開始として選べるようにする。
-        return initialStart ... max(initialStart, availableEnd.addingTimeInterval(-60))
-    }
-
-    private var endTimeRange: ClosedRange<Date> {
-        guard let availableEnd else { return .distantPast ... .distantFuture }
-        return min(max(initialStart, startTime.addingTimeInterval(60)), availableEnd) ... availableEnd
-    }
-
-    private var composedStartDate: Date {
-        if availableEnd != nil { return startTime }
-        return merge(date: visitDate, time: startTime, calendar: .init(identifier: .gregorian))
-    }
-
-    private var composedEndDate: Date {
-        if availableEnd != nil { return endTime }
-        return merge(date: visitDate, time: endTime, calendar: .init(identifier: .gregorian))
-    }
-
-    private var canSave: Bool {
-        guard composedEndDate > composedStartDate else { return false }
-        guard let availableEnd else { return true }
-        return composedStartDate >= initialStart && composedEndDate <= availableEnd
-    }
-
-    private func addEvent() async {
-        guard !isSaving else { return }
-        guard canSave else {
-            errorMessage = "終了は開始より後にし、提案された空き時間の範囲内で選んでください。"
-            return
-        }
-        let start = composedStartDate
-        let end = composedEndDate
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            let granted = try await EventKitService.shared.requestAccess()
-            guard granted else {
-                errorMessage = "カレンダーへのアクセスが許可されていません"
-                return
-            }
-            try EventKitService.shared.addVisitEvent(
-                exhibition: exhibition,
-                startDate: start,
-                endDate: end
-            )
-            addedStartDate = start
-            showSuccess = true
-        } catch {
-            errorMessage = "カレンダーの追加に失敗しました"
-        }
+        .interactiveDismissDisabled(vm.isSaving)
+        .navigationBarBackButtonHidden(vm.isSaving)
     }
 
     private func timeRangeText(start: Date, end: Date) -> String {
-        let df = DateFormatter()
+        let df = DateFormatter.japanese()
         df.locale = Locale(identifier: "ja_JP")
         df.dateFormat = "HH:mm"
         return "\(df.string(from: start))–\(df.string(from: end))"
-    }
-
-    private func merge(date: Date, time: Date, calendar: Calendar) -> Date {
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
-        var components = DateComponents()
-        components.year = dateComponents.year
-        components.month = dateComponents.month
-        components.day = dateComponents.day
-        components.hour = timeComponents.hour
-        components.minute = timeComponents.minute
-        return calendar.date(from: components) ?? date
     }
 
     private func openCalendar(at date: Date) {

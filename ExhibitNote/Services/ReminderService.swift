@@ -21,6 +21,7 @@ final class ReminderService {
     private var revisions: [String: UUID] = [:]
     private var queuedIDs: Set<String> = []
     private var lastNearbyFailure: Date?
+    private var isMigratingTimeZone = false
 
     init(
         client: (any NotificationClient)? = nil,
@@ -97,6 +98,7 @@ final class ReminderService {
     /// 起動・復帰時に、失敗した期限通知だけを再設定する。バックグラウンドの定期実行は行わない。
     /// データ取得に失敗した場合は保留し、実行時に最新のデータ・設定を読み直す。
     func retryPendingEndingSoonNotifications(in context: ModelContext) async {
+        await migrateNotificationTimeZoneIfNeeded(in: context)
         let tasks = pendingIDs.sorted().compactMap { id -> Task<Void, Never>? in
             guard !queuedIDs.contains(id) else { return nil }
             return enqueue(exhibitionID: id) { [self] in
@@ -117,6 +119,27 @@ final class ReminderService {
             }
         }
         for task in tasks { await task.value }
+    }
+
+    /// 旧バージョンの時間帯指定なしの予約も、初回の起動・復帰時に日本時間へ更新する。
+    private func migrateNotificationTimeZoneIfNeeded(in context: ModelContext) async {
+        let key = "endingSoonNotificationsUseJapanTimeZone"
+        guard !defaults.bool(forKey: key), !isMigratingTimeZone else { return }
+        isMigratingTimeZone = true
+        defer { isMigratingTimeZone = false }
+        do {
+            let exhibitions = try context.fetch(FetchDescriptor<Exhibition>())
+            let settings = settingsStore.endingSoonNotificationSettings
+            await rescheduleAllNotifications(
+                exhibitions: exhibitions,
+                isEnabled: settings.isEnabled,
+                notificationTime: settings.notificationTime
+            )
+            // 予約失敗分は既存の再試行対象に残る。
+            defaults.set(true, forKey: key)
+        } catch {
+            logger.error("通知の時間帯更新用データ取得に失敗: \(error.localizedDescription, privacy: .private)")
+        }
     }
 
     /// 対象IDを永続化してから一列に実行する。同じIDの古い処理は最新の依頼で無効になる。
@@ -146,7 +169,7 @@ final class ReminderService {
         client.removePending(identifiers)
         guard isEnabled else { finish(id); return }
 
-        let calendar = Calendar.current
+        let calendar = Calendar.japan
         let hasFutureNotification = Self.endingSoonReminders.contains {
             notificationDate(endDate: exhibition.endDate, daysBefore: $0.daysBefore, time: time, calendar: calendar) != nil
         }
@@ -192,6 +215,8 @@ final class ReminderService {
     private func notificationDate(endDate: Date, daysBefore: Int, time: DateComponents, calendar: Calendar) -> DateComponents? {
         guard let day = calendar.date(byAdding: .day, value: -daysBefore, to: endDate) else { return nil }
         var date = calendar.dateComponents([.year, .month, .day], from: day)
+        date.calendar = calendar
+        date.timeZone = calendar.timeZone
         date.hour = time.hour ?? 9
         date.minute = time.minute ?? 0
         guard let scheduledDate = calendar.date(from: date), scheduledDate > clock() else { return nil }

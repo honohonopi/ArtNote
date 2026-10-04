@@ -158,14 +158,14 @@ enum ExhibitionShareService {
 
 
     static func parseDate(_ text: String) -> Date? {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: text)
     }
 
     private static func ymdString(_ date: Date) -> String {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: date)

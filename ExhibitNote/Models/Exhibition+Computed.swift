@@ -33,9 +33,9 @@ extension Exhibition {
     }
     
     var runStatus: RunStatus {
-        let today = Calendar.current.startOfDay(for: Date())
-        let sd = Calendar.current.startOfDay(for: startDate)
-        let ed = Calendar.current.startOfDay(for: endDate)
+        let today = Calendar.japan.startOfDay(for: Date())
+        let sd = Calendar.japan.startOfDay(for: startDate)
+        let ed = Calendar.japan.startOfDay(for: endDate)
 
         if today < sd { return .notStarted }
         if today > ed { return .finished }

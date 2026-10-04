@@ -8,10 +8,21 @@
 // カレンダー連携
 import EventKit
 
-final class EventKitService {
+/// 訪問予定の追加で必要なカレンダー操作。
+protocol VisitEventSaving {
+    func authorizationStatus() -> EKAuthorizationStatus
+    func requestAccess() async throws -> Bool
+    func addVisitEvent(exhibition: Exhibition, startDate: Date, endDate: Date, notes: String?) throws
+}
+
+final class EventKitService: VisitEventSaving {
     static let shared = EventKitService()
     private let store = EKEventStore()
     private init() {}
+
+    func authorizationStatus() -> EKAuthorizationStatus {
+        EKEventStore.authorizationStatus(for: .event)
+    }
 
     @discardableResult
     func requestAccess() async throws -> Bool {
@@ -35,6 +46,7 @@ final class EventKitService {
         event.location = exhibition.venue
         event.startDate = startDate
         event.endDate = endDate
+        event.timeZone = Calendar.japan.timeZone
         event.notes = notes ?? exhibition.url?.absoluteString
         event.calendar = store.defaultCalendarForNewEvents
         try store.save(event, span: .thisEvent)

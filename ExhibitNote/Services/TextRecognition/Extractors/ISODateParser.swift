@@ -9,7 +9,7 @@ import Foundation
 
 enum ISODateParser {
     static func parseISODate(_ iso: String) -> Date? {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: iso)

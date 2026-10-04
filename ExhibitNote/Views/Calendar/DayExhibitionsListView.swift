@@ -15,8 +15,8 @@ struct DayExhibitionsListView: View {
     @State private var viewMode: DayViewMode = .exhibitions
     @StateObject private var timelineViewModel = DayTimelineViewModel()
 
-    private var dfHeader: DateFormatter { let f=DateFormatter(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M月d日（E）"; return f }
-    private var dfRange: DateFormatter  { let f=DateFormatter(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M/d"; return f }
+    private var dfHeader: DateFormatter { let f=DateFormatter.japanese(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M月d日（E）"; return f }
+    private var dfRange: DateFormatter  { let f=DateFormatter.japanese(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M/d"; return f }
 
     private enum DayViewMode: String, CaseIterable, Identifiable {
         case exhibitions = "展示"

@@ -10,12 +10,12 @@ import SwiftUI
 final class MonthCalendarViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
     
     private var cal: Calendar = {
-        var c = Calendar(identifier: .gregorian)
+        var c = Calendar.japan
         c.locale = Locale(identifier: "ja_JP")
         c.firstWeekday = 1  // ←月曜始まりにしたい場合は 2 に
         return c
     }()
-    private var monthAnchor: Date = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date()))!
+    private var monthAnchor: Date = Calendar.japan.date(from: Calendar.japan.dateComponents([.year, .month], from: Date()))!
     
     private var daysMatrix: [[Date?]] = []     // 6週×7列（nil は前後月の空き）
     private var eventSpansBySection: [[EventSpan]] = [] // 週ごとの横断ピル（段階1は row=0 固定）
@@ -28,7 +28,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     private var layout: MonthGridLayout!
     
     private lazy var monthTitleFormatter: DateFormatter = {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy年M月"
         return f
@@ -124,7 +124,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
         let firstWeekStarts: [Date] = (0..<weeks).map { i in
             let row = daysMatrix[i]
             let first = row.compactMap { $0 }.first ?? monthAnchor
-            return Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: first))!
+            return Calendar.japan.date(from: Calendar.japan.dateComponents([.yearForWeekOfYear, .weekOfYear], from: first))!
         }
         
         // 2) 週ごとの横断スパン（まず row=0 で作る）
@@ -328,7 +328,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
     
     private func updateWeekdaySymbols() {
         // 「日/月/…」をロケール ja_JP で取得（端末言語に依存しない）
-        let df = DateFormatter()
+        let df = DateFormatter.japanese()
         df.calendar = cal
         df.locale   = cal.locale
 
@@ -368,7 +368,7 @@ final class MonthCalendarViewController: UIViewController, UICollectionViewDataS
 extension MonthCalendarViewController {
     // 月初に正規化
     fileprivate func startOfMonth(_ d: Date) -> Date {
-        let c = Calendar.current
+        let c = Calendar.japan
         return c.date(from: c.dateComponents([.year, .month], from: d))!
     }
     

@@ -19,10 +19,10 @@ struct ExhibitionsCalendarView: View {
     @State private var daySheetDetent: PresentationDetent = .medium
     
     private func formattedMonthTitle(from rawTitle: String) -> String {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.dateFormat = "MMMM yyyy"
         guard let date = formatter.date(from: rawTitle) else { return rawTitle }
-        let jpFormatter = DateFormatter()
+        let jpFormatter = DateFormatter.japanese()
         jpFormatter.locale = Locale(identifier: "ja_JP")
         jpFormatter.dateFormat = "yyyy年M月"
         return jpFormatter.string(from: date)

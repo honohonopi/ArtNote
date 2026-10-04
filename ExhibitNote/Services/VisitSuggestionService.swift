@@ -12,7 +12,7 @@ struct VisitSuggestionService {
         events: [(start: Date, end: Date)],
         day: Date,
         includeVisited: Bool,
-        calendar: Calendar = .current,
+        calendar: Calendar = .japan,
         now: Date = .now
     ) -> [TimelineSuggestion] {
         let dayStart = calendar.startOfDay(for: day)

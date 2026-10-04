@@ -121,9 +121,9 @@ struct DateRule: Equatable {
 
 private enum ScheduleDateFormat {
     static let formatter: DateFormatter = {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+        formatter.timeZone = Calendar.japan.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()

@@ -10,7 +10,7 @@ import Foundation
 extension Date {
     /// 表示用の日付文字列（例: 2025/11/25）
     var ymdString: String {
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.dateFormat = "yyyy/MM/dd"
         formatter.locale = Locale(identifier: "ja_JP")
         return formatter.string(from: self)

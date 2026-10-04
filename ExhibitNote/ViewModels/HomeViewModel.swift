@@ -37,7 +37,7 @@ final class HomeViewModel: ObservableObject {
     }
 
     func soonExhibitions(from allExhibitions: [Exhibition], within soonDays: Int) -> [Exhibition] {
-        let cal = Calendar.current
+        let cal = Calendar.japan
         let today = cal.startOfDay(for: now)
         let upper = cal.date(byAdding: .day, value: soonDays, to: today)!
         return allExhibitions
@@ -58,7 +58,7 @@ final class HomeViewModel: ObservableObject {
             nearbyExhibitions = []
             return
         }
-        let today = Calendar.current.startOfDay(for: now)
+        let today = Calendar.japan.startOfDay(for: now)
         let running = allExhibitions.filter {
             $0.hasCoordinate && $0.startDate <= today && $0.endDate >= today
         }
@@ -100,11 +100,11 @@ final class HomeViewModel: ObservableObject {
         if let open = timeOnToday(openTime, now: now), now < open { return false }
         let cutoff: Date
         if let last = timeOnToday(lastEntryTime, now: now) {
-            cutoff = Calendar.current.date(byAdding: .minute, value: -30, to: last) ?? last
+            cutoff = Calendar.japan.date(byAdding: .minute, value: -30, to: last) ?? last
         } else if let close = timeOnToday(closeTime, now: now) {
-            cutoff = Calendar.current.date(byAdding: .minute, value: -60, to: close) ?? close
+            cutoff = Calendar.japan.date(byAdding: .minute, value: -60, to: close) ?? close
         } else {
-            cutoff = Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: now) ?? now
+            cutoff = Calendar.japan.date(bySettingHour: 16, minute: 0, second: 0, of: now) ?? now
         }
         return now <= cutoff
     }
@@ -113,16 +113,16 @@ final class HomeViewModel: ObservableObject {
         guard let timeString else { return nil }
         let trimmed = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != "未設定" else { return nil }
-        let formatter = DateFormatter()
+        let formatter = DateFormatter.japanese()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
         guard let time = formatter.date(from: trimmed) else { return nil }
-        let comps = Calendar.current.dateComponents([.hour, .minute], from: time)
-        return Calendar.current.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: 0, of: now)
+        let comps = Calendar.japan.dateComponents([.hour, .minute], from: time)
+        return Calendar.japan.date(bySettingHour: comps.hour ?? 0, minute: comps.minute ?? 0, second: 0, of: now)
     }
 
     private func ymdKey(_ date: Date) -> String {
-        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let comps = Calendar.japan.dateComponents([.year, .month, .day], from: date)
         guard let y = comps.year, let m = comps.month, let d = comps.day else { return "" }
         return String(format: "%04d-%02d-%02d", y, m, d)
     }

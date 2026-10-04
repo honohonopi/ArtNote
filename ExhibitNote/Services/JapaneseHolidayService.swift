@@ -8,12 +8,7 @@
 import Foundation
 
 enum JapaneseHolidayService {
-    static let calendar: Calendar = {
-        var cal = Calendar(identifier: .gregorian)
-        cal.locale = Locale(identifier: "ja_JP")
-        cal.timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
-        return cal
-    }()
+    static let calendar = Calendar.japan
 
     static func isHoliday(_ date: Date) -> Bool {
         let day = calendar.startOfDay(for: date)

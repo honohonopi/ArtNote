@@ -10,13 +10,13 @@ import SwiftData
 
 final class MonthPagerViewController: UIPageViewController, UIPageViewControllerDataSource, UIPageViewControllerDelegate {
     
-    private let cal = Calendar.current
+    private let cal = Calendar.japan
     private var exhibitions: [Exhibition] = []
     private var currentVC: MonthCalendarViewController!
     private var lastSignature: [String] = []
     
     private lazy var monthTitleFormatter: DateFormatter = {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy年M月"
         return f

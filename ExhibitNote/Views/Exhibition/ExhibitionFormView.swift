@@ -25,7 +25,7 @@ struct ExhibitionFormView: View {
 
     // 表示用フォーマッタ
     private var ymdFormatter: DateFormatter {
-        let f = DateFormatter()
+        let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "yyyy/MM/dd"
         return f

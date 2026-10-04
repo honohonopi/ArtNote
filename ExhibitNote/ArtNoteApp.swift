@@ -24,6 +24,8 @@ struct ArtNoteApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.calendar, Calendar.japan)
+                .environment(\.timeZone, Calendar.japan.timeZone)
         }
         .modelContainer(for: [Exhibition.self, Reminder.self])
     }
