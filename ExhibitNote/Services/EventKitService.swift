@@ -15,7 +15,7 @@ final class EventKitService {
 
     @discardableResult
     func requestAccess() async throws -> Bool {
-        try await store.requestAccess(to: .event)
+        try await store.requestFullAccessToEvents()
     }
 
     func addVisitEvent(exhibition: Exhibition,

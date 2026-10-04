@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
+import EventKit
+import UIKit
 
 struct DayTimelineView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     let date: Date
     let exhibitions: [Exhibition]
     @ObservedObject var viewModel: DayTimelineViewModel
-    @ObservedObject private var settingsStore = SettingsStore.shared
     @State private var showSuggestionActions = false
     @State private var selectedSuggestion: TimelineSuggestion?
     @State private var addVisitTarget: AddVisitEventTarget?
@@ -22,8 +25,6 @@ struct DayTimelineView: View {
     private let columnSpacing: CGFloat = 6
     private let horizontalPadding: CGFloat = 8
     private let timeToEventSpacing: CGFloat = 8
-    private let suggestionBufferMinutes: Double = 30
-    private let suggestionMinimumMinutes: Double = 60
     private let suggestionCarouselPadding: CGFloat = 16
 
     private var dfTime: DateFormatter {
@@ -39,7 +40,10 @@ struct DayTimelineView: View {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if viewModel.hasAccess {
-                timelineContent
+                // 開いたままでも、時間の経過に合わせて今日の候補を更新する。
+                TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                    timelineContent(now: timeline.date)
+                }
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "calendar.badge.exclamationmark")
@@ -48,13 +52,28 @@ struct DayTimelineView: View {
                     Text(accessMessage)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    if viewModel.authorizationStatus == .notDetermined {
-                        Button("アクセスを許可") {
+                    if viewModel.authorizationStatus == .notDetermined || viewModel.authorizationStatus == .writeOnly {
+                        if let message = viewModel.authorizationErrorMessage {
+                            Text(message)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button(viewModel.authorizationErrorMessage == nil ? "カレンダーへのアクセスを許可" : "もう一度試す") {
                             Task { await viewModel.requestAccessAndRefresh(for: date) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(viewModel.isRequestingAccess)
+                    } else if viewModel.authorizationStatus == .denied {
+                        Button("設定アプリを開く") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(url)
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                     }
                 }
+                .multilineTextAlignment(.center)
+                .padding()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -89,6 +108,14 @@ struct DayTimelineView: View {
         .onChange(of: date) { _, newValue in
             viewModel.refresh(for: newValue)
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            viewModel.refresh(for: date)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged).receive(on: RunLoop.main)) { _ in
+            guard scenePhase == .active else { return }
+            viewModel.refresh(for: date)
+        }
     }
 
     private func timeText(for event: DayTimelineEvent) -> String {
@@ -100,23 +127,27 @@ struct DayTimelineView: View {
 
     private var accessMessage: String {
         switch viewModel.authorizationStatus {
-        case .denied, .restricted:
-            return "カレンダーへのアクセスが許可されていません"
+        case .denied:
+            return "カレンダーへのアクセスが許可されていません。設定アプリで、このアプリのカレンダーへのフルアクセスを許可してください。"
+        case .restricted:
+            return "端末の機能制限により、カレンダーを利用できません。スクリーンタイムや管理者による制限を確認してください。"
         case .notDetermined:
-            return "カレンダーへのアクセスが必要です"
+            return "予定と空き時間を表示するため、カレンダーへのアクセスが必要です。"
+        case .writeOnly:
+            return "現在は予定の追加のみ許可されています。予定と空き時間を表示するには、フルアクセスが必要です。"
         default:
             return "カレンダーへのアクセスが許可されていません"
         }
     }
 
-    private var timelineContent: some View {
+    private func timelineContent(now: Date) -> some View {
         let allDayEvents = viewModel.events.filter { $0.isAllDay }
         let timedEvents = viewModel.events.filter { !$0.isAllDay }
         let layoutItems = layoutEvents(timedEvents)
-        let suggestions = buildSuggestions(
+        let suggestions = viewModel.suggestions(
             exhibitions: exhibitions,
-            events: timedEvents,
-            day: date
+            day: date,
+            now: now
         )
         let suggestionClusters = layoutSuggestionClusters(suggestions)
 
@@ -326,230 +357,32 @@ struct DayTimelineView: View {
         Calendar.current.date(byAdding: .day, value: 1, to: dayStart) ?? date
     }
 
-    private func buildSuggestions(
-        exhibitions: [Exhibition],
-        events: [DayTimelineEvent],
-        day: Date
-    ) -> [TimelineSuggestion] {
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: day)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? day
-        let blocked = mergedBlockedIntervals(
-            events: events,
-            dayStart: dayStart,
-            dayEnd: dayEnd
-        )
-        let freeIntervals = availableIntervals(
-            blocked: blocked,
-            dayStart: dayStart,
-            dayEnd: dayEnd
-        )
-        var suggestions: [TimelineSuggestion] = []
-        for exhibition in exhibitions {
-            if !settingsStore.includeVisitedSuggestions, exhibition.visited {
-                continue
-            }
-            guard case let .open(openTime, closeTime, _) = ExhibitionScheduleUtils.openingStatus(
-                on: day,
-                exhibition: exhibition
-            ) else {
-                continue
-            }
-            guard let openStart = timeStringToDate(openTime, on: day, calendar: calendar),
-                  let openEnd = timeStringToDate(closeTime, on: day, calendar: calendar),
-                  openEnd > openStart
-            else {
-                continue
-            }
-            for interval in freeIntervals {
-                let start = max(interval.start, openStart)
-                let end = min(interval.end, openEnd)
-                let minutes = end.timeIntervalSince(start) / 60.0
-                if minutes >= suggestionMinimumMinutes {
-                    suggestions.append(
-                        TimelineSuggestion(
-                            exhibition: exhibition,
-                            availableStart: start,
-                            availableEnd: end
-                        )
-                    )
-                }
-            }
-        }
-        return suggestions.sorted { $0.availableStart < $1.availableStart }
-    }
-
-    private func timeStringToDate(
-        _ timeString: String,
-        on day: Date,
-        calendar: Calendar
-    ) -> Date? {
-        let trimmed = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "未設定" else { return nil }
-        let parts = trimmed.split(separator: ":")
-        guard parts.count == 2,
-              let hour = Int(parts[0]),
-              let minute = Int(parts[1])
-        else {
-            return nil
-        }
-        let dayStart = calendar.startOfDay(for: day)
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: dayStart)
-    }
-
     private func timeTextRange(for suggestion: TimelineSuggestion) -> String {
         "\(dfTime.string(from: suggestion.availableStart))–\(dfTime.string(from: suggestion.availableEnd))"
     }
 
 
-    private func mergedBlockedIntervals(
-        events: [DayTimelineEvent],
-        dayStart: Date,
-        dayEnd: Date
-    ) -> [TimeIntervalRange] {
-        let buffered = events.map { event -> TimeIntervalRange in
-            let start = event.startDate.addingTimeInterval(-suggestionBufferMinutes * 60)
-            let end = event.endDate.addingTimeInterval(suggestionBufferMinutes * 60)
-            return TimeIntervalRange(
-                start: max(start, dayStart),
-                end: min(end, dayEnd)
-            )
-        }
-        .filter { $0.end > $0.start }
-        .sorted { $0.start < $1.start }
-
-        var merged: [TimeIntervalRange] = []
-        for interval in buffered {
-            if let last = merged.last, interval.start <= last.end {
-                merged[merged.count - 1] = TimeIntervalRange(
-                    start: last.start,
-                    end: max(last.end, interval.end)
-                )
-            } else {
-                merged.append(interval)
-            }
-        }
-        return merged
-    }
-
-    private func availableIntervals(
-        blocked: [TimeIntervalRange],
-        dayStart: Date,
-        dayEnd: Date
-    ) -> [TimeIntervalRange] {
-        var free: [TimeIntervalRange] = []
-        var cursor = dayStart
-        for interval in blocked {
-            if interval.start > cursor {
-                free.append(TimeIntervalRange(start: cursor, end: interval.start))
-            }
-            cursor = max(cursor, interval.end)
-        }
-        if cursor < dayEnd {
-            free.append(TimeIntervalRange(start: cursor, end: dayEnd))
-        }
-        return free
-    }
-
     private func layoutEvents(_ events: [DayTimelineEvent]) -> [EventLayoutItem] {
-        let sorted = events.sorted { $0.startDate < $1.startDate }
-        var active: [(event: DayTimelineEvent, column: Int)] = []
-        var cluster: [DayTimelineEvent] = []
-        var columnMap: [String: Int] = [:]
-        var columnCountMap: [String: Int] = [:]
-        var maxColumns = 0
-
-        func finalizeCluster() {
-            for event in cluster {
-                columnCountMap[event.id] = maxColumns
+        TimelineLayout.clusters(for: events, start: \.startDate, end: \.endDate).flatMap { cluster in
+            cluster.items.map { item in
+                EventLayoutItem(event: item.value, column: item.column, columnCount: cluster.columnCount)
             }
-            cluster.removeAll()
-            maxColumns = 0
-        }
-
-        for event in sorted {
-            active.removeAll { $0.event.endDate <= event.startDate }
-            if active.isEmpty, !cluster.isEmpty {
-                finalizeCluster()
-            }
-
-            var used = Set(active.map { $0.column })
-            var column = 0
-            while used.contains(column) {
-                column += 1
-            }
-            active.append((event, column))
-            columnMap[event.id] = column
-            cluster.append(event)
-            maxColumns = max(maxColumns, active.count)
-        }
-        if !cluster.isEmpty {
-            finalizeCluster()
-        }
-
-        return sorted.map { event in
-            EventLayoutItem(
-                event: event,
-                column: columnMap[event.id] ?? 0,
-                columnCount: columnCountMap[event.id] ?? 1
-            )
         }
     }
 
     private func layoutSuggestionClusters(_ suggestions: [TimelineSuggestion]) -> [SuggestionCluster] {
-        let sorted = suggestions.sorted { $0.availableStart < $1.availableStart }
-        var active: [(suggestion: TimelineSuggestion, column: Int)] = []
-        var cluster: [TimelineSuggestion] = []
-        var columnMap: [String: Int] = [:]
-        var maxColumns = 0
-        var clusters: [SuggestionCluster] = []
-
-        func finalizeCluster() {
-            guard !cluster.isEmpty else { return }
-            let items = cluster.map { suggestion in
-                SuggestionLayoutItem(
-                    suggestion: suggestion,
-                    column: columnMap[suggestion.id] ?? 0,
-                    columnCount: maxColumns
-                )
-            }
-            let start = cluster.map(\.availableStart).min() ?? dayStart
-            let end = cluster.map(\.availableEnd).max() ?? dayStart
-            clusters.append(
-                SuggestionCluster(
-                    items: items,
-                    columnCount: maxColumns,
-                    start: start,
-                    end: end
-                )
+        TimelineLayout.clusters(for: suggestions, start: \.availableStart, end: \.availableEnd).map { cluster in
+            SuggestionCluster(
+                items: cluster.items.map { item in
+                    SuggestionLayoutItem(suggestion: item.value, column: item.column, columnCount: cluster.columnCount)
+                },
+                columnCount: cluster.columnCount,
+                start: cluster.start,
+                end: cluster.end
             )
-            cluster.removeAll()
-            columnMap.removeAll()
-            maxColumns = 0
         }
-
-        for suggestion in sorted {
-            active.removeAll { $0.suggestion.availableEnd <= suggestion.availableStart }
-            if active.isEmpty, !cluster.isEmpty {
-                finalizeCluster()
-            }
-
-            var used = Set(active.map { $0.column })
-            var column = 0
-            while used.contains(column) {
-                column += 1
-            }
-            active.append((suggestion, column))
-            columnMap[suggestion.id] = column
-            cluster.append(suggestion)
-            maxColumns = max(maxColumns, active.count)
-        }
-        if !cluster.isEmpty {
-            finalizeCluster()
-        }
-
-        return clusters
     }
+
 }
 
 private struct DayTimelineEventRow: View {
@@ -579,23 +412,6 @@ private struct DayTimelineEventRow: View {
         .padding(.horizontal, 10)
         .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10))
     }
-}
-
-private struct TimelineSuggestion: Identifiable {
-    let exhibition: Exhibition
-    let availableStart: Date
-    let availableEnd: Date
-
-    var id: String {
-        let start = Int(availableStart.timeIntervalSince1970)
-        let end = Int(availableEnd.timeIntervalSince1970)
-        return "\(exhibition.persistentModelID)-\(start)-\(end)"
-    }
-}
-
-private struct TimeIntervalRange {
-    let start: Date
-    let end: Date
 }
 
 private struct DetailNavigationTarget: Identifiable, Hashable {

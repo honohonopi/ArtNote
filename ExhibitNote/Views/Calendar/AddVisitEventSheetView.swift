@@ -18,6 +18,7 @@ struct AddVisitEventSheetView: View {
     @State private var startTime: Date
     @State private var endTime: Date
     @State private var showSuccess = false
+    @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var addedStartDate: Date?
 
@@ -42,34 +43,46 @@ struct AddVisitEventSheetView: View {
                         .foregroundStyle(.secondary)
                 }
                 Section("訪問日時") {
-                    DatePicker(
-                        "訪問日",
-                        selection: $visitDate,
-                        displayedComponents: [.date]
-                    )
-                    .datePickerStyle(.compact)
-                    .environment(\.locale, Locale(identifier: "ja_JP"))
-                    .environment(\.calendar, Calendar(identifier: .gregorian))
-                    .environment(\.timeZone, TimeZone(identifier: "Asia/Tokyo")!)
+                    if availableEnd != nil {
+                        LabeledContent("訪問日") {
+                            Text(initialStart, format: .dateTime.year().month().day())
+                        }
+                    } else {
+                        DatePicker(
+                            "訪問日",
+                            selection: $visitDate,
+                            displayedComponents: [.date]
+                        )
+                        .datePickerStyle(.compact)
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
+                        .environment(\.calendar, Calendar(identifier: .gregorian))
+                        .environment(\.timeZone, TimeZone(identifier: "Asia/Tokyo")!)
+                    }
                     DatePicker(
                         "開始",
                         selection: $startTime,
+                        in: startTimeRange,
                         displayedComponents: [.hourAndMinute]
                     )
                     DatePicker(
                         "終了",
                         selection: $endTime,
+                        in: endTimeRange,
                         displayedComponents: [.hourAndMinute]
                     )
                 }
                 if let availableEnd {
                     Section {
-                        Text("空き時間: \(timeRangeText(start: composedStartDate, end: availableEnd))")
+                        Text("空き時間: \(timeRangeText(start: initialStart, end: availableEnd))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text("この空き時間の範囲内で、開始・終了時刻を選べます。")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
+            .disabled(isSaving)
             .navigationTitle("予定に追加")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -80,6 +93,7 @@ struct AddVisitEventSheetView: View {
                     Button("追加") {
                         Task { await addEvent() }
                     }
+                    .disabled(isSaving || !canSave)
                 }
             }
             .onChange(of: visitDate) { _, newValue in
@@ -90,6 +104,12 @@ struct AddVisitEventSheetView: View {
                 endTime = max(end, start.addingTimeInterval(30 * 60))
             }
             .onChange(of: startTime) { _, newValue in
+                if let availableEnd {
+                    if endTime <= newValue {
+                        endTime = min(newValue.addingTimeInterval(30 * 60), availableEnd)
+                    }
+                    return
+                }
                 let start = merge(date: visitDate, time: newValue, calendar: .init(identifier: .gregorian))
                 let end = merge(date: visitDate, time: endTime, calendar: .init(identifier: .gregorian))
                 startTime = start
@@ -98,6 +118,7 @@ struct AddVisitEventSheetView: View {
                 }
             }
             .onChange(of: endTime) { _, newValue in
+                guard availableEnd == nil else { return }
                 let end = merge(date: visitDate, time: newValue, calendar: .init(identifier: .gregorian))
                 let start = merge(date: visitDate, time: startTime, calendar: .init(identifier: .gregorian))
                 endTime = max(end, start)
@@ -125,15 +146,43 @@ struct AddVisitEventSheetView: View {
         }
     }
 
+    private var startTimeRange: ClosedRange<Date> {
+        guard let availableEnd else { return .distantPast ... .distantFuture }
+        // 分単位の入力で、終了より前の時刻だけを開始として選べるようにする。
+        return initialStart ... max(initialStart, availableEnd.addingTimeInterval(-60))
+    }
+
+    private var endTimeRange: ClosedRange<Date> {
+        guard let availableEnd else { return .distantPast ... .distantFuture }
+        return min(max(initialStart, startTime.addingTimeInterval(60)), availableEnd) ... availableEnd
+    }
+
     private var composedStartDate: Date {
-        merge(date: visitDate, time: startTime, calendar: .init(identifier: .gregorian))
+        if availableEnd != nil { return startTime }
+        return merge(date: visitDate, time: startTime, calendar: .init(identifier: .gregorian))
     }
 
     private var composedEndDate: Date {
-        merge(date: visitDate, time: endTime, calendar: .init(identifier: .gregorian))
+        if availableEnd != nil { return endTime }
+        return merge(date: visitDate, time: endTime, calendar: .init(identifier: .gregorian))
+    }
+
+    private var canSave: Bool {
+        guard composedEndDate > composedStartDate else { return false }
+        guard let availableEnd else { return true }
+        return composedStartDate >= initialStart && composedEndDate <= availableEnd
     }
 
     private func addEvent() async {
+        guard !isSaving else { return }
+        guard canSave else {
+            errorMessage = "終了は開始より後にし、提案された空き時間の範囲内で選んでください。"
+            return
+        }
+        let start = composedStartDate
+        let end = composedEndDate
+        isSaving = true
+        defer { isSaving = false }
         do {
             let granted = try await EventKitService.shared.requestAccess()
             guard granted else {
@@ -142,10 +191,10 @@ struct AddVisitEventSheetView: View {
             }
             try EventKitService.shared.addVisitEvent(
                 exhibition: exhibition,
-                startDate: composedStartDate,
-                endDate: composedEndDate
+                startDate: start,
+                endDate: end
             )
-            addedStartDate = composedStartDate
+            addedStartDate = start
             showSuccess = true
         } catch {
             errorMessage = "カレンダーの追加に失敗しました"
