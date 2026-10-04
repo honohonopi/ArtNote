@@ -15,15 +15,18 @@ final class HomeViewModel: ObservableObject {
     private var isSchedulingNearby = false
     private let defaults: UserDefaults
     private let reminderService: ReminderService
+    private let settingsStore: SettingsStore
 
     init(
         now: Date? = nil,
         defaults: UserDefaults = .standard,
-        reminderService: ReminderService? = nil
+        reminderService: ReminderService? = nil,
+        settingsStore: SettingsStore? = nil
     ) {
         self.fixedNow = now
         self.defaults = defaults
         self.reminderService = reminderService ?? .shared
+        self.settingsStore = settingsStore ?? .shared
     }
 
     func requestNotificationAuthorization(in context: ModelContext) async {
@@ -49,8 +52,7 @@ final class HomeViewModel: ObservableObject {
 
     func recomputeNearby(
         exhibitions allExhibitions: [Exhibition],
-        coordinate: CLLocationCoordinate2D?,
-        radiusKm nearbyRadiusKm: Double
+        coordinate: CLLocationCoordinate2D?
     ) {
         guard let here = coordinate else {
             nearbyExhibitions = []
@@ -67,21 +69,17 @@ final class HomeViewModel: ObservableObject {
                 paired.append((ex, distanceKm(c, here)))
             }
         }
-        let limited = paired.filter { $0.1 <= nearbyRadiusKm }
+        let limited = paired.filter { $0.1 <= settingsStore.nearbyRadiusKm }
         nearbyExhibitions = limited.sorted { $0.1 < $1.1 }
     }
 
-    func checkNearbyOpenNotification(
-        isEnabled notifyNearbyOpenEnabled: Bool,
-        coordinate: CLLocationCoordinate2D?,
-        radiusKm notifyNearbyRadiusKm: Double
-    ) {
-        guard notifyNearbyOpenEnabled, !isSchedulingNearby else { return }
+    func checkNearbyOpenNotification(coordinate: CLLocationCoordinate2D?) {
+        guard settingsStore.notifyNearbyOpenEnabled, !isSchedulingNearby else { return }
         let now = now
         guard coordinate != nil else { return }
         let todayKey = ymdKey(now)
         guard defaults.string(forKey: "notifyNearbyLastDate") != todayKey else { return }
-        guard let target = nearbyExhibitions.first(where: { isNotifyTarget($0.0, now: now, distanceKm: $0.1, radiusKm: notifyNearbyRadiusKm) }) else { return }
+        guard let target = nearbyExhibitions.first(where: { isNotifyTarget($0.0, now: now, distanceKm: $0.1, radiusKm: settingsStore.notifyNearbyRadiusKm) }) else { return }
         isSchedulingNearby = true
         Task {
             defer { isSchedulingNearby = false }

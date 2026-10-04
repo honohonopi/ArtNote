@@ -4,17 +4,38 @@ import MapKit
 
 struct HomeNearbySectionView: View {
     @Binding var nearbyRadiusKm: Double
-    @Binding var mapRegion: MKCoordinateRegion
 
+    let location: CLLocation?
     let authorization: CLAuthorizationStatus
     let items: [(Exhibition, Double)]
-    let displayLimit: Int
-    let pins: [MapPin]
     let requestLocation: () -> Void
-    let onRadiusEditingChanged: (Bool) -> Void
+    let onSelectExhibition: (String) -> Void
 
-    @Binding var selectedPinID: String?          // ← Map の選択状態を受け取る
-    @Binding var highlightedExID: String?
+    @State private var selectedPinID: String?
+    @State private var mapRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
+        span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+    )
+
+    private let displayLimit = 5
+
+    private var pins: [MapPin] {
+        var pins: [MapPin] = []
+        if let coordinate = location?.coordinate {
+            pins.append(MapPin(id: "here", coordinate: coordinate, title: "現在地", isHere: true))
+        }
+        for (exhibition, _) in items.prefix(displayLimit) {
+            if let coordinate = exhibition.coordinate {
+                pins.append(MapPin(id: exhibition.id, coordinate: coordinate, title: exhibition.title, isHere: false))
+            }
+        }
+        return pins
+    }
+
+    private var spanForRadius: MKCoordinateSpan {
+        let degrees = max(nearbyRadiusKm / 111.0, 0.02)
+        return MKCoordinateSpan(latitudeDelta: degrees, longitudeDelta: degrees)
+    }
 
     var body: some View {
         Section {
@@ -38,14 +59,14 @@ struct HomeNearbySectionView: View {
                                 .padding(.vertical, 4)
                         }
                         .overlay(alignment: .leading) {
-                            if highlightedExID == ex.id {
+                            if selectedPinID == ex.id {
                                 Rectangle()
                                     .fill(Color.red.opacity(0.5))
                                     .frame(width: 4)
                                     .transition(.opacity.combined(with: .move(edge: .leading)))
                             }
                         }
-                        .animation(.easeInOut(duration: 0.25), value: highlightedExID)
+                        .animation(.easeInOut(duration: 0.25), value: selectedPinID)
                         .id("nearby-\(ex.id)")
                     }
                 }
@@ -62,18 +83,12 @@ struct HomeNearbySectionView: View {
                 Spacer()
                 Text("\(Int(nearbyRadiusKm))km")
                 Menu {
-                    Picker("範囲の選択", selection: Binding(
-                        get: { Int(nearbyRadiusKm) },
-                        set: { newVal in
-                            nearbyRadiusKm = Double(newVal)
-                            onRadiusEditingChanged(false)
-                        }
-                    )) {
-                        Text("3km").tag(3)
-                        Text("5km").tag(5)
-                        Text("10km").tag(10)
-                        Text("20km").tag(20)
-                        Text("50km").tag(50)
+                    Picker("範囲の選択", selection: $nearbyRadiusKm) {
+                        Text("3km").tag(3.0)
+                        Text("5km").tag(5.0)
+                        Text("10km").tag(10.0)
+                        Text("20km").tag(20.0)
+                        Text("50km").tag(50.0)
                     }
                 } label: {
                     Image(systemName: "slider.horizontal.3")
@@ -82,46 +97,59 @@ struct HomeNearbySectionView: View {
                 }
             }
         }
+        .onChange(of: location, initial: true) {
+            if let coordinate = location?.coordinate {
+                mapRegion.center = coordinate
+                mapRegion.span = spanForRadius
+            }
+        }
+        .onChange(of: nearbyRadiusKm) {
+            mapRegion.span = spanForRadius
+        }
+        .onChange(of: selectedPinID) {
+            guard let selectedPinID, selectedPinID != "here" else { return }
+            onSelectExhibition(selectedPinID)
+        }
     }
 }
 
-struct MapPin: Identifiable {
+private struct MapPin: Identifiable {
     let id: String
     let coordinate: CLLocationCoordinate2D
     let title: String
     let isHere: Bool
-    let exhibition: Exhibition?
 }
 
-struct NearbyMiniMapView: View {
+private struct NearbyMiniMapView: View {
     @Binding var region: MKCoordinateRegion
     let pins: [MapPin]
     @Binding var selectedPinID: String?
 
     var body: some View {
-                Map(
-                    coordinateRegion: $region,
-                    interactionModes: [.zoom, .pan],
-                    showsUserLocation: false,
-                    annotationItems: pins
-                ) { (pin: MapPin) in
-                    MapAnnotation(coordinate: pin.coordinate) {
-                        // タップで選択状態を更新 → リスト側がハイライト＆スクロール
-                        Button {
-                            selectedPinID = pin.id
-                        } label: {
-                            Image(systemName: pin.isHere ? "mappin.circle.fill" : "mappin.circle")
-                                .font(.title3)
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(
-                                    pin.isHere ? Color.accentColor : (selectedPinID == pin.id ? Color.red : Color.gray)
-                                )
-                                .padding(4)
-                                .background(.thinMaterial, in: Circle().inset(by: -2))
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                    }
+        Map(
+            coordinateRegion: $region,
+            interactionModes: [.zoom, .pan],
+            showsUserLocation: false,
+            annotationItems: pins
+        ) { (pin: MapPin) in
+            MapAnnotation(coordinate: pin.coordinate) {
+                // タップで選択状態を更新 → リスト側がハイライト＆スクロール
+                Button {
+                    selectedPinID = pin.id
+                } label: {
+                    Image(systemName: pin.isHere ? "mappin.circle.fill" : "mappin.circle")
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(
+                            pin.isHere ? Color.accentColor : (selectedPinID == pin.id ? Color.red : Color.gray)
+                        )
+                        .padding(4)
+                        .background(.thinMaterial, in: Circle().inset(by: -2))
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(pin.title)
+                .contentShape(Rectangle())
+            }
+        }
     }
 }

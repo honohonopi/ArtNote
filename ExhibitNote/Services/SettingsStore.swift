@@ -24,6 +24,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(notifyNearbyRadiusKm, forKey: "notifyNearbyRadiusKm") }
     }
 
+    @Published var nearbyRadiusKm: Double {
+        didSet { defaults.set(nearbyRadiusKm, forKey: "nearbyRadiusKm") }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -34,6 +38,7 @@ final class SettingsStore: ObservableObject {
             hour: (defaults.object(forKey: "notifyDeadlineHour") as? Int) ?? fallback.hour,
             minute: (defaults.object(forKey: "notifyDeadlineMinute") as? Int) ?? fallback.minute
         )
+        self.nearbyRadiusKm = (defaults.object(forKey: "nearbyRadiusKm") as? Double) ?? 10
         self.includeVisitedSuggestions = defaults.bool(forKey: "includeVisitedSuggestions")
         self.notifyNearbyOpenEnabled = defaults.bool(forKey: "notifyNearbyOngoingEnabled")
         self.notifyNearbyRadiusKm = (defaults.object(forKey: "notifyNearbyRadiusKm") as? Double) ?? 10
