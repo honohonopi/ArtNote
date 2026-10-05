@@ -9,7 +9,6 @@ import SwiftUI
 import MapKit
 import PhotosUI
 import UIKit
-import PDFKit
 
 @MainActor
 final class ExhibitionFormViewModel: ObservableObject {
@@ -136,33 +135,20 @@ final class ExhibitionFormViewModel: ObservableObject {
     }
 
     func preparePickedPDF(_ url: URL) {
-        let accessed = url.startAccessingSecurityScopedResource()
-        defer {
-            if accessed { url.stopAccessingSecurityScopedResource() }
-        }
-        guard let document = PDFDocument(url: url) else {
+        guard let pageCount = FlyerImageService.pdfPageCount(at: url) else {
             ocrAlertMessage = "PDFの読み込みに失敗しました。"
             showOcrAlert = true
             return
         }
-        if document.pageCount <= 1 {
+        if pageCount <= 1 {
             Task { await handlePickedPDF(url, pageIndex: 0) }
             return
         }
-        pdfSelection = PDFSelection(url: url, pageCount: document.pageCount)
+        pdfSelection = PDFSelection(url: url, pageCount: pageCount)
     }
 
     func handlePickedPDF(_ url: URL, pageIndex: Int) async {
-        let accessed = url.startAccessingSecurityScopedResource()
-        defer {
-            if accessed { url.stopAccessingSecurityScopedResource() }
-        }
-        guard let document = PDFDocument(url: url),
-              pageIndex >= 0,
-              pageIndex < document.pageCount,
-              let page = document.page(at: pageIndex),
-              let image = renderPDFPage(page)
-        else {
+        guard let image = FlyerImageService.image(fromPDF: url, pageIndex: pageIndex) else {
             ocrAlertMessage = "PDFの読み込みに失敗しました。"
             showOcrAlert = true
             return
@@ -171,63 +157,15 @@ final class ExhibitionFormViewModel: ObservableObject {
     }
 
     func handlePickedPDF(_ url: URL, pageIndices: [Int]) async {
-        let accessed = url.startAccessingSecurityScopedResource()
-        defer {
-            if accessed { url.stopAccessingSecurityScopedResource() }
-        }
-        guard let document = PDFDocument(url: url) else {
-            ocrAlertMessage = "PDFの読み込みに失敗しました。"
-            showOcrAlert = true
-            return
-        }
-        let images: [UIImage] = pageIndices.compactMap { index in
-            guard index >= 0, index < document.pageCount,
-                  let page = document.page(at: index)
-            else { return nil }
-            return renderPDFPage(page, maxSide: 1600)
-        }
-        guard let combined = combineImagesVertically(images) else {
+        guard let combined = FlyerImageService.combinedImage(
+            fromPDF: url,
+            pageIndices: pageIndices
+        ) else {
             ocrAlertMessage = "PDFの読み込みに失敗しました。"
             showOcrAlert = true
             return
         }
         await handlePickedImage(combined)
-    }
-
-    private func renderPDFPage(_ page: PDFPage, maxSide: CGFloat = 2000) -> UIImage? {
-        let pageRect = page.bounds(for: .mediaBox)
-        let scale = min(maxSide / max(pageRect.width, pageRect.height), 1)
-        let size = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        return renderer.image { context in
-            context.cgContext.saveGState()
-            context.cgContext.translateBy(x: 0, y: size.height)
-            context.cgContext.scaleBy(x: scale, y: -scale)
-            page.draw(with: .mediaBox, to: context.cgContext)
-            context.cgContext.restoreGState()
-        }
-    }
-
-    private func combineImagesVertically(_ images: [UIImage]) -> UIImage? {
-        guard !images.isEmpty else { return nil }
-        let maxWidth = min(images.map { $0.size.width }.max() ?? 0, 1600)
-        let spacing: CGFloat = 12
-        let sizes: [CGSize] = images.map { img in
-            let scale = maxWidth / img.size.width
-            return CGSize(width: maxWidth, height: img.size.height * scale)
-        }
-        let totalHeight = sizes.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, sizes.count - 1))
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: maxWidth, height: totalHeight))
-        return renderer.image { context in
-            var y: CGFloat = 0
-            for (idx, img) in images.enumerated() {
-                let size = sizes[idx]
-                img.draw(in: CGRect(origin: CGPoint(x: 0, y: y), size: size))
-                y += size.height + spacing
-            }
-        }
     }
 
     func commitDraftSpecialOpening() {
@@ -446,12 +384,63 @@ final class ExhibitionFormViewModel: ObservableObject {
             return
         }
         let limited = Array(images.prefix(2))
-        guard let combined = combineImagesVertically(limited) else {
+        guard let combined = FlyerImageService.combineVertically(limited) else {
             ocrAlertMessage = "画像の読み込みに失敗しました。"
             showOcrAlert = true
             return
         }
         await handlePickedImage(combined)
+    }
+
+    func handleSelectedPhotoItems(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else { return }
+        defer { selectedItems = [] }
+
+        var images: [UIImage] = []
+        for item in items.prefix(2) {
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                images.append(image)
+            }
+        }
+
+        guard !images.isEmpty else {
+            ocrAlertMessage = "画像の読み込みに失敗しました。"
+            showOcrAlert = true
+            return
+        }
+        await handlePickedImages(images)
+    }
+
+    func makeExhibition() -> Exhibition {
+        let exhibition = Exhibition(
+            title: title,
+            venue: venue,
+            address: addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
+            startDate: startDate,
+            endDate: endDate,
+            url: urlString.normalizedWebURL(),
+            catalogTotalCount: Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
+        )
+        exhibition.scheduleOpenTime = scheduleOpenTime
+        exhibition.scheduleCloseTime = scheduleCloseTime
+        exhibition.scheduleLastEntryTime = scheduleLastEntryTime
+        exhibition.scheduleClosedWeekdays = scheduleClosedWeekdays.map(\.rawValue)
+        exhibition.scheduleHolidayHandling = scheduleHolidayHandling.map(Self.holidayHandlingRawValue)
+        exhibition.scheduleClosedDateRules = scheduleClosedDateRules.map { $0.toRecord() }
+        exhibition.scheduleOpenDateRules = scheduleOpenDateRules.map { $0.toRecord() }
+        exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
+        exhibition.admissionFeeRules = admissionFees
+        exhibition.reservationRequired = reservationRequired
+        exhibition.posterThumbData = posterThumbData
+
+        if let coordinate = tempCoordinate {
+            exhibition.setCoordinate(coordinate)
+        }
+        if let color = pickedColor.map(UIColor.init) ?? autoColor {
+            exhibition.setColor(color)
+        }
+        return exhibition
     }
 
     func autoResolveAddress(from venue: String) async {
@@ -529,6 +518,17 @@ final class ExhibitionFormViewModel: ObservableObject {
                                lastEntryTime: last,
                                note: nil)
             ]
+        }
+    }
+
+    private static func holidayHandlingRawValue(_ value: HolidayHandling) -> String {
+        switch value {
+        case .none:
+            return "NONE"
+        case .openOnHoliday:
+            return "OPEN_ON_HOLIDAY"
+        case .openOnHolidayCloseNextWeekday:
+            return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
         }
     }
 }

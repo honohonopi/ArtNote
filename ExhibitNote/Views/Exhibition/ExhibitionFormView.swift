@@ -32,36 +32,9 @@ struct ExhibitionFormView: View {
     }
     
     private func save() {
-        print(vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines))
-        let total = Int(vm.catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
-        let normalizedURL = vm.urlString.normalizedWebURL()
-        let ex = Exhibition(title: vm.title,
-                            venue: vm.venue,
-                            address: vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
-                            startDate: vm.startDate,
-                            endDate: vm.endDate,
-                            url: normalizedURL,
-                            catalogTotalCount: total)
-        ex.scheduleOpenTime = vm.scheduleOpenTime
-        ex.scheduleCloseTime = vm.scheduleCloseTime
-        ex.scheduleLastEntryTime = vm.scheduleLastEntryTime
-        ex.scheduleClosedWeekdays = vm.scheduleClosedWeekdays.map { $0.rawValue }
-        ex.scheduleHolidayHandling = vm.scheduleHolidayHandling.map { holidayHandlingRaw($0) }
-        ex.scheduleClosedDateRules = vm.scheduleClosedDateRules.map { $0.toRecord() }
-        ex.scheduleOpenDateRules = vm.scheduleOpenDateRules.map { $0.toRecord() }
-        ex.scheduleSpecialOpenings = vm.scheduleSpecialOpenings.map { $0.toRecord() }
-        ex.admissionFeeRules = vm.admissionFees
-        ex.reservationRequired = vm.reservationRequired
-        ex.posterThumbData = vm.posterThumbData
-        if let c = vm.tempCoordinate {
-            ex.setCoordinate(c)
-        }
-        if let ui = (vm.pickedColor.map { UIColor($0) } ?? vm.autoColor) {
-            ex.setColor(ui)
-        }
-        
+        let exhibition = vm.makeExhibition()
         writeState.run {
-            try await ExhibitionPersistenceService(context: context).insert(ex)
+            try await ExhibitionPersistenceService(context: context).insert(exhibition)
             dismiss()
         }
     }
@@ -77,17 +50,6 @@ struct ExhibitionFormView: View {
         !vm.scheduleSpecialOpenings.isEmpty
     }
     
-    private func holidayHandlingRaw(_ value: HolidayHandling) -> String {
-        switch value {
-        case .none:
-            return "NONE"
-        case .openOnHoliday:
-            return "OPEN_ON_HOLIDAY"
-        case .openOnHolidayCloseNextWeekday:
-            return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
-        }
-    }
-
     private func reservationStatusText(_ value: Bool?) -> String {
         switch value {
         case .some(true):
@@ -120,28 +82,7 @@ struct ExhibitionFormView: View {
                 )
                 .onChange(of: vm.selectedItems) { _, newItems in
                     guard !newItems.isEmpty else { return }
-                    Task {
-                        let limited = Array(newItems.prefix(2))
-                        var images: [UIImage] = []
-                        for item in limited {
-                            if let data = try? await item.loadTransferable(type: Data.self),
-                               let image = UIImage(data: data) {
-                                images.append(image)
-                            }
-                        }
-                        if images.isEmpty {
-                            await MainActor.run {
-                                vm.ocrAlertMessage = "画像の読み込みに失敗しました。"
-                                vm.showOcrAlert = true
-                                vm.selectedItems = []
-                            }
-                            return
-                        }
-                        await vm.handlePickedImages(images)
-                        await MainActor.run {
-                            vm.selectedItems = []
-                        }
-                    }
+                    Task { await vm.handleSelectedPhotoItems(newItems) }
                 }
                 .alert(vm.missingAlertMessage, isPresented: $vm.showMissingAlert) {
                     Button("OK", role: .cancel) {}
