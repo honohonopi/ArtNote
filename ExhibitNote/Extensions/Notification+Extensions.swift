@@ -5,11 +5,8 @@
 //  Created by Honoka Nishiyama on 2025/10/18.
 //
 
-import SwiftUI
+import Foundation
 
 extension Notification.Name {
-    static let calendarDayTapped = Notification.Name("calendarDayTapped")
-    static let calendarMonthTitleUpdated = Notification.Name("calendarMonthTitleUpdated")
     static let MKMapViewRegionDidChange = Notification.Name("MKMapViewRegionDidChange")
-    static let calendarJumpToToday      = Notification.Name("calendarJumpToToday")
 }

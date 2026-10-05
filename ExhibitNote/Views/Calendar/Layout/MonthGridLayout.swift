@@ -26,7 +26,6 @@ final class MonthGridLayout: UICollectionViewLayout {
     
     private var weeks: Int = 6
     private var eventSpansBySection: [[EventSpan]] = []
-    private var maxRowsBySection: [Int] = []      // （高さ固定のため実質参照しませんが、受け取りは維持）
     
     static let pillKind = "EventPillDecoration"
     static let dayOverflowKind = "DayOverflowDecoration"
@@ -45,11 +44,9 @@ final class MonthGridLayout: UICollectionViewLayout {
     }
     required init?(coder: NSCoder) { fatalError() }
     
-    // 週ごとの行数情報は受け取るが、高さは固定のまま
-    func configure(weeks: Int, eventSpansBySection: [[EventSpan]], maxRowsBySection: [Int]) {
+    func configure(weeks: Int, eventSpansBySection: [[EventSpan]]) {
         self.weeks = weeks
         self.eventSpansBySection = eventSpansBySection
-        self.maxRowsBySection = maxRowsBySection
     }
     
     func setExhibitions(_ exhibitions: [Exhibition]) {

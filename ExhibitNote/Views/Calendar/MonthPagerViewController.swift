@@ -14,18 +14,8 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
     private var exhibitions: [Exhibition] = []
     private var currentVC: MonthCalendarViewController!
     private var lastSignature: [String] = []
-    
-    private lazy var monthTitleFormatter: DateFormatter = {
-        let f = DateFormatter.japanese()
-        f.locale = Locale(identifier: "ja_JP")
-        f.dateFormat = "yyyy年M月"
-        return f
-    }()
-    
-    private func postMonthTitle(for month: Date) {
-        let title = monthTitleFormatter.string(from: month)
-        NotificationCenter.default.post(name: .calendarMonthTitleUpdated, object: title)
-    }
+    var onMonthChanged: ((Date) -> Void)?
+    var onDaySelected: ((Date) -> Void)?
     
     init(exhibitions: [Exhibition], initialMonth: Date = Date()) {
         super.init(transitionStyle: .scroll, navigationOrientation: .horizontal)
@@ -48,27 +38,9 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
                 $0.venue
             ].joined(separator: "|")
         }
+        configureCallbacks(for: currentVC)
         setViewControllers([currentVC], direction: .forward, animated: false)
-        // 初期表示時にタイトル通知
-        postMonthTitle(for: currentVC.currentMonthAnchor)
-        
-        // 「今日へ」ジャンプ要求を購読
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleJumpToToday),
-            name: .calendarJumpToToday,
-            object: nil
-        )
-    }
-    
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // 画面復帰時にも再通知（タイトルが消えた時の保険）
-        postMonthTitle(for: currentVC.currentMonthAnchor)
-    }
-    
-    deinit {
-        NotificationCenter.default.removeObserver(self, name: .calendarJumpToToday, object: nil)
+        onMonthChanged?(currentVC.currentMonthAnchor)
     }
     
     // MARK: - DataSource（前後の月）
@@ -76,14 +48,14 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
                             viewControllerBefore viewController: UIViewController) -> UIViewController? {
         guard let vc = viewController as? MonthCalendarViewController else { return nil }
         guard let prev = cal.date(byAdding: .month, value: -1, to: vc.currentMonthAnchor) else { return nil }
-        return MonthCalendarViewController(month: prev, exhibitions: exhibitions)
+        return makeMonthViewController(month: prev)
     }
     
     func pageViewController(_ pageViewController: UIPageViewController,
                             viewControllerAfter viewController: UIViewController) -> UIViewController? {
         guard let vc = viewController as? MonthCalendarViewController else { return nil }
         guard let next = cal.date(byAdding: .month, value: 1, to: vc.currentMonthAnchor) else { return nil }
-        return MonthCalendarViewController(month: next, exhibitions: exhibitions)
+        return makeMonthViewController(month: next)
     }
     
     // MARK: - Delegate（ページ送り完了）
@@ -93,7 +65,7 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
                             transitionCompleted completed: Bool) {
         if completed, let vc = viewControllers?.first as? MonthCalendarViewController {
             currentVC = vc
-            postMonthTitle(for: vc.currentMonthAnchor)
+            onMonthChanged?(vc.currentMonthAnchor)
         }
     }
     
@@ -114,25 +86,6 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
         if let vc = viewControllers?.first as? MonthCalendarViewController {
             vc.configure(with: exhibitions)
         }
-        postMonthTitle(for: currentVC.currentMonthAnchor) // 念のため再通知
-    }
-    
-    // 任意：プログラムで月移動（前月:-1 / 次月:+1）
-    func jump(byMonths delta: Int) {
-        guard let target = cal.date(byAdding: .month, value: delta, to: currentVC.currentMonthAnchor) else { return }
-        let vc = MonthCalendarViewController(month: target, exhibitions: exhibitions)
-        let dir: UIPageViewController.NavigationDirection = (delta >= 0) ? .forward : .reverse
-        setViewControllers([vc], direction: dir, animated: true) { [weak self] done in
-            guard done else { return }
-            self?.currentVC = vc
-            self?.postMonthTitle(for: vc.currentMonthAnchor)
-        }
-    }
-    
-    
-    // MARK: - 今日へジャンプ（通知ハンドラ）
-    @objc private func handleJumpToToday() {
-        jumpToMonth(containing: Date(), animated: true)
     }
     
     /// 指定日を含む「月」へページジャンプ
@@ -140,17 +93,36 @@ final class MonthPagerViewController: UIPageViewController, UIPageViewController
         // 現在の月とターゲットの月の差分（±何ヶ月）を求める
         let delta = monthsBetween(currentVC.currentMonthAnchor, date)
         guard delta != 0 else {
-            // 同じ月ならタイトルだけ再通知
-            postMonthTitle(for: currentVC.currentMonthAnchor)
+            onMonthChanged?(currentVC.currentMonthAnchor)
             return
         }
         guard let target = cal.date(byAdding: .month, value: delta, to: currentVC.currentMonthAnchor) else { return }
-        let nextVC = MonthCalendarViewController(month: target, exhibitions: exhibitions)
+        let nextVC = makeMonthViewController(month: target)
         let dir: UIPageViewController.NavigationDirection = (delta >= 0) ? .forward : .reverse
         setViewControllers([nextVC], direction: dir, animated: animated) { [weak self] done in
             guard done else { return }
             self?.currentVC = nextVC
-            self?.postMonthTitle(for: nextVC.currentMonthAnchor)
+            self?.onMonthChanged?(nextVC.currentMonthAnchor)
+        }
+    }
+
+    func showMonth(containing date: Date) {
+        guard monthsBetween(currentVC.currentMonthAnchor, date) != 0 else { return }
+        jumpToMonth(containing: date)
+    }
+
+    private func makeMonthViewController(month: Date) -> MonthCalendarViewController {
+        let viewController = MonthCalendarViewController(
+            month: month,
+            exhibitions: exhibitions
+        )
+        configureCallbacks(for: viewController)
+        return viewController
+    }
+
+    private func configureCallbacks(for viewController: MonthCalendarViewController) {
+        viewController.onDaySelected = { [weak self] date in
+            self?.onDaySelected?(date)
         }
     }
     

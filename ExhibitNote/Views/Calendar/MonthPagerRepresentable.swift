@@ -10,12 +10,28 @@ import SwiftData
 
 struct MonthPagerRepresentable: UIViewControllerRepresentable {
     @Query(sort: [SortDescriptor(\Exhibition.startDate, order: .forward)]) private var exhibitions: [Exhibition]
+    @Binding var currentMonth: Date
+    let onDaySelected: (Date) -> Void
 
     func makeUIViewController(context: Context) -> MonthPagerViewController {
-        MonthPagerViewController(exhibitions: exhibitions, initialMonth: Date())
+        let viewController = MonthPagerViewController(
+            exhibitions: exhibitions,
+            initialMonth: currentMonth
+        )
+        configureCallbacks(for: viewController)
+        return viewController
     }
 
     func updateUIViewController(_ uiViewController: MonthPagerViewController, context: Context) {
-        uiViewController.update(exhibitions: exhibitions) 
+        configureCallbacks(for: uiViewController)
+        uiViewController.update(exhibitions: exhibitions)
+        uiViewController.showMonth(containing: currentMonth)
+    }
+
+    private func configureCallbacks(for viewController: MonthPagerViewController) {
+        viewController.onMonthChanged = { month in
+            currentMonth = month
+        }
+        viewController.onDaySelected = onDaySelected
     }
 }
