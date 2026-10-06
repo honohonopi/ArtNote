@@ -104,7 +104,7 @@ struct DayExhibitionsListView: View {
                 .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 4))
         case let .open(openTime, closeTime, lastEntryTime):
             let themeColor = exhibition.swiftUIColor ?? .blue
-            let textColor = readableTextColor(for: themeColor)
+            let textColor = themeColor.readableForegroundColor
             if openTime == "未設定" || closeTime == "未設定" {
                 Text("開館時間未設定")
                     .font(.caption)
@@ -132,17 +132,4 @@ struct DayExhibitionsListView: View {
         }
     }
 
-    private func readableTextColor(for color: Color) -> Color {
-        let uiColor = UIColor(color)
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var alpha: CGFloat = 0
-        guard uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
-            return .white
-        }
-        // Relative luminance for contrast.
-        let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-        return luminance < 0.6 ? .white : .black
-    }
 }
