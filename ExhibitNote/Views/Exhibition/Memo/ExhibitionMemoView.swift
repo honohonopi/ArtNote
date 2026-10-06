@@ -63,14 +63,11 @@ struct ExhibitionMemoView: View {
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                CameraPicker { image in
-                    if let image {
-                        memoAction = .insertImage(image)
-                    }
+            CameraPicker { image in
+                showCamera = false
+                if let image {
+                    memoAction = .insertImage(image)
                 }
-                .ignoresSafeArea()
             }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)

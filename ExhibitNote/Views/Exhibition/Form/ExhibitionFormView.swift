@@ -239,16 +239,12 @@ struct ExhibitionFormView: View {
         }
         .photosPicker(isPresented: $vm.showPhotoPicker, selection: $vm.selectedItems, maxSelectionCount: 2, matching: .images)
         .fullScreenCover(isPresented: $vm.showCamera) {
-            CameraCaptureView(
-                maxCount: 2,
-                onCancel: {
-                    vm.showCamera = false
-                },
-                onComplete: { images in
-                    vm.showCamera = false
-                    Task { await vm.handlePickedImages(images) }
+            CameraPicker { image in
+                vm.showCamera = false
+                if let image {
+                    Task { await vm.handlePickedImage(image) }
                 }
-            )
+            }
         }
         .sheet(item: $vm.pdfSelection) { selection in
             PDFPagePickerSheet(

@@ -153,12 +153,6 @@ struct ExhibitionEditView: View {
                     onCommit: vm.commitAdmissionFee
                 )
             }
-            .sheet(isPresented: $vm.showCamera) {
-                CameraPicker { image in
-                    if let img = image { vm.handlePickedImage(img) }
-                    vm.showCamera = false
-                }
-            }
         }
         .exhibitionWriteFeedback(writeState)
         .photosPicker(
@@ -168,6 +162,14 @@ struct ExhibitionEditView: View {
         )
         .onChange(of: vm.selectedPhotoItem) { _, item in
             Task { await vm.handleSelectedPhotoItem(item) }
+        }
+        .fullScreenCover(isPresented: $vm.showCamera) {
+            CameraPicker { image in
+                vm.showCamera = false
+                if let image {
+                    vm.handlePickedImage(image)
+                }
+            }
         }
     }
 
