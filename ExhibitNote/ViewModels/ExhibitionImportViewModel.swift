@@ -1,8 +1,9 @@
-import Combine
 import Foundation
+import Observation
 
 @MainActor
-final class ExhibitionImportViewModel: ObservableObject {
+@Observable
+final class ExhibitionImportViewModel {
     struct SpecialOpeningText {
         let main: String
         let lastEntry: String?
@@ -10,8 +11,8 @@ final class ExhibitionImportViewModel: ObservableObject {
 
     let payload: ExhibitionSharePayload
 
-    @Published private(set) var posterThumbData: Data?
-    @Published private(set) var isLoadingPoster = false
+    private(set) var posterThumbData: Data?
+    private(set) var isLoadingPoster = false
 
     private let importService: ExhibitionImportService
 

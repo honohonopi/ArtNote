@@ -12,11 +12,11 @@ struct ExhibitionImportSheetView: View {
 
     @Environment(\.modelContext) private var context
     @StateObject private var writeState = ExhibitionWriteState()
-    @StateObject private var vm: ExhibitionImportViewModel
+    @State private var vm: ExhibitionImportViewModel
     @Environment(\.dismiss) private var dismiss
 
     init(payload: ExhibitionSharePayload, onComplete: @escaping () -> Void) {
-        _vm = StateObject(wrappedValue: ExhibitionImportViewModel(payload: payload))
+        _vm = State(initialValue: ExhibitionImportViewModel(payload: payload))
         self.onComplete = onComplete
     }
 
