@@ -28,28 +28,22 @@ final class DayTimelineViewModel: ObservableObject {
     @Published private(set) var authorizationErrorMessage: String?
     @Published private(set) var isRequestingAccess = false
 
-    private let settingsStore: SettingsStore
     private let suggestionService = VisitSuggestionService()
-    private var settingsObservation: AnyCancellable?
     private var latestRefreshID = UUID()
 
-    init(settingsStore: SettingsStore? = nil) {
-        let store = settingsStore ?? .shared
-        self.settingsStore = store
-        // 設定画面で訪問済みの扱いを変えた時も、候補を再描画する。
-        settingsObservation = store.$includeVisitedSuggestions.dropFirst().sink { [weak self] _ in
-            self?.objectWillChange.send()
-        }
-    }
-
-    func suggestions(exhibitions: [Exhibition], day: Date, now: Date = .now) -> [TimelineSuggestion] {
+    func suggestions(
+        exhibitions: [Exhibition],
+        day: Date,
+        includeVisited: Bool,
+        now: Date = .now
+    ) -> [TimelineSuggestion] {
         // 終日予定は表示のみとし、候補の空き時間計算からは除外する（従来の仕様）。
         let timedEvents = events.filter { !$0.isAllDay }
         return suggestionService.suggestions(
             exhibitions: exhibitions,
             events: timedEvents.map { (start: $0.startDate, end: $0.endDate) },
             day: day,
-            includeVisited: settingsStore.includeVisitedSuggestions,
+            includeVisited: includeVisited,
             now: now
         )
     }

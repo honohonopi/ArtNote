@@ -1,12 +1,13 @@
 import Foundation
-import Combine
+import Observation
 import UserNotifications
 
 @MainActor
-final class SettingsViewModel: ObservableObject {
-    @Published private(set) var notificationAuthorizationStatus: UNAuthorizationStatus?
-    @Published private(set) var isRequestingAuthorization = false
-    @Published private(set) var authorizationErrorMessage: String?
+@Observable
+final class SettingsViewModel {
+    private(set) var notificationAuthorizationStatus: UNAuthorizationStatus?
+    private(set) var isRequestingAuthorization = false
+    private(set) var authorizationErrorMessage: String?
 
     private let reminderService: ReminderService
     private let settingsStore: SettingsStore

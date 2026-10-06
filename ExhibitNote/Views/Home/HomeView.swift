@@ -14,7 +14,8 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     
     @AppStorage("soonDays") private var soonDays: Int = 7
-    @ObservedObject private var settingsStore = SettingsStore.shared
+    @AppStorage("nearbyRadiusKm") private var nearbyRadiusKm = 10.0
+    private let settingsStore = SettingsStore.shared
     
     @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)])
     private var allExhibitions: [Exhibition]
@@ -37,7 +38,7 @@ struct HomeView: View {
                     HomeSoonSectionView(soonDays: $soonDays, exhibitions: vm.soonExhibitions(from: allExhibitions, within: soonDays))
 
                     HomeNearbySectionView(
-                        nearbyRadiusKm: $settingsStore.nearbyRadiusKm,
+                        nearbyRadiusKm: $nearbyRadiusKm,
                         location: loc.location,
                         authorization: loc.authorization,
                         items: vm.nearbyExhibitions,
@@ -73,7 +74,7 @@ struct HomeView: View {
                     recomputeNearby()
                     checkNearbyOpenNotification()
                 }
-                .onChange(of: settingsStore.nearbyRadiusKm) {
+                .onChange(of: nearbyRadiusKm) {
                     recomputeNearby()
                 }
                 .onAppear {
@@ -106,7 +107,8 @@ struct HomeView: View {
     private func recomputeNearby() {
         vm.recomputeNearby(
             exhibitions: allExhibitions,
-            coordinate: loc.location?.coordinate
+            coordinate: loc.location?.coordinate,
+            radiusKm: nearbyRadiusKm
         )
     }
 

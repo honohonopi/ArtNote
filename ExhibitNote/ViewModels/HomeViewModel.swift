@@ -53,7 +53,8 @@ final class HomeViewModel {
 
     func recomputeNearby(
         exhibitions allExhibitions: [Exhibition],
-        coordinate: CLLocationCoordinate2D?
+        coordinate: CLLocationCoordinate2D?,
+        radiusKm: Double
     ) {
         guard let here = coordinate else {
             if !nearbyExhibitions.isEmpty {
@@ -72,7 +73,7 @@ final class HomeViewModel {
                 paired.append((ex, distanceKm(c, here)))
             }
         }
-        let limited = paired.filter { $0.1 <= settingsStore.nearbyRadiusKm }
+        let limited = paired.filter { $0.1 <= radiusKm }
         let newValue = limited.sorted { $0.1 < $1.1 }
         guard !hasSameNearbyExhibitions(as: newValue) else { return }
         nearbyExhibitions = newValue

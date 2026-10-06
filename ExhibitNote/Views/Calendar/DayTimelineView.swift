@@ -12,6 +12,7 @@ import UIKit
 struct DayTimelineView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
+    @Bindable private var settingsStore = SettingsStore.shared
     let date: Date
     let exhibitions: [Exhibition]
     @ObservedObject var viewModel: DayTimelineViewModel
@@ -35,6 +36,7 @@ struct DayTimelineView: View {
     }
 
     var body: some View {
+        let includeVisited = settingsStore.includeVisitedSuggestions
         Group {
             if viewModel.isLoading {
                 ProgressView()
@@ -42,7 +44,7 @@ struct DayTimelineView: View {
             } else if viewModel.hasAccess {
                 // 開いたままでも、時間の経過に合わせて今日の候補を更新する。
                 TimelineView(.periodic(from: .now, by: 60)) { timeline in
-                    timelineContent(now: timeline.date)
+                    timelineContent(now: timeline.date, includeVisited: includeVisited)
                 }
             } else {
                 VStack(spacing: 12) {
@@ -140,13 +142,14 @@ struct DayTimelineView: View {
         }
     }
 
-    private func timelineContent(now: Date) -> some View {
+    private func timelineContent(now: Date, includeVisited: Bool) -> some View {
         let allDayEvents = viewModel.events.filter { $0.isAllDay }
         let timedEvents = viewModel.events.filter { !$0.isAllDay }
         let layoutItems = layoutEvents(timedEvents)
         let suggestions = viewModel.suggestions(
             exhibitions: exhibitions,
             day: date,
+            includeVisited: includeVisited,
             now: now
         )
         let suggestionClusters = layoutSuggestionClusters(suggestions)

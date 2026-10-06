@@ -3,8 +3,8 @@ import SwiftData
 import UIKit
 
 struct SettingsView: View {
-    @StateObject private var vm = SettingsViewModel()
-    @ObservedObject private var settingsStore = SettingsStore.shared
+    @State private var vm = SettingsViewModel()
+    @Bindable private var settingsStore = SettingsStore.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
