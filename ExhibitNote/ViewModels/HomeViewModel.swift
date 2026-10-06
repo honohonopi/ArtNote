@@ -55,7 +55,9 @@ final class HomeViewModel: ObservableObject {
         coordinate: CLLocationCoordinate2D?
     ) {
         guard let here = coordinate else {
-            nearbyExhibitions = []
+            if !nearbyExhibitions.isEmpty {
+                nearbyExhibitions = []
+            }
             return
         }
         let today = Calendar.japan.startOfDay(for: now)
@@ -70,7 +72,16 @@ final class HomeViewModel: ObservableObject {
             }
         }
         let limited = paired.filter { $0.1 <= settingsStore.nearbyRadiusKm }
-        nearbyExhibitions = limited.sorted { $0.1 < $1.1 }
+        let newValue = limited.sorted { $0.1 < $1.1 }
+        guard !hasSameNearbyExhibitions(as: newValue) else { return }
+        nearbyExhibitions = newValue
+    }
+
+    private func hasSameNearbyExhibitions(as newValue: [(Exhibition, Double)]) -> Bool {
+        guard nearbyExhibitions.count == newValue.count else { return false }
+        return zip(nearbyExhibitions, newValue).allSatisfy { current, new in
+            current.0.id == new.0.id && abs(current.1 - new.1) < 0.001
+        }
     }
 
     func checkNearbyOpenNotification(coordinate: CLLocationCoordinate2D?) {
