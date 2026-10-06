@@ -12,10 +12,10 @@ import UIKit
 struct DayTimelineView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    @Bindable private var settingsStore = SettingsStore.shared
+    private let settingsStore = SettingsStore.shared
     let date: Date
     let exhibitions: [Exhibition]
-    @ObservedObject var viewModel: DayTimelineViewModel
+    var viewModel: DayTimelineViewModel
     @State private var showSuggestionActions = false
     @State private var selectedSuggestion: TimelineSuggestion?
     @State private var addVisitTarget: AddVisitEventTarget?

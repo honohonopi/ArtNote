@@ -13,7 +13,7 @@ struct DayExhibitionsListView: View {
     let date: Date
     let exhibitions: [Exhibition]
     @State private var viewMode: DayViewMode = .exhibitions
-    @StateObject private var timelineViewModel = DayTimelineViewModel()
+    @State private var timelineViewModel = DayTimelineViewModel()
 
     private var dfHeader: DateFormatter { let f=DateFormatter.japanese(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M月d日（E）"; return f }
     private var dfRange: DateFormatter  { let f=DateFormatter.japanese(); f.locale = .init(identifier:"ja_JP"); f.dateFormat="M/d"; return f }

@@ -14,7 +14,7 @@ struct ExhibitionsCalendarView: View {
     @Query(sort: [SortDescriptor(\Exhibition.startDate, order: .forward)])
     private var exhibitions: [Exhibition]
     
-    @StateObject private var vm = CalendarViewModel()
+    @State private var vm = CalendarViewModel()
     @State private var currentMonth = Date()
     @State private var daySheetDetent: PresentationDetent = .medium
     

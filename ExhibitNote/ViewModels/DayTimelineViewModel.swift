@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Combine
+import Observation
 import EventKit
 import UIKit
 
@@ -21,12 +21,13 @@ struct DayTimelineEvent: Identifiable, Equatable {
 }
 
 @MainActor
-final class DayTimelineViewModel: ObservableObject {
-    @Published var authorizationStatus: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
-    @Published var events: [DayTimelineEvent] = []
-    @Published var isLoading = false
-    @Published private(set) var authorizationErrorMessage: String?
-    @Published private(set) var isRequestingAccess = false
+@Observable
+final class DayTimelineViewModel {
+    var authorizationStatus: EKAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
+    var events: [DayTimelineEvent] = []
+    var isLoading = false
+    private(set) var authorizationErrorMessage: String?
+    private(set) var isRequestingAccess = false
 
     private let suggestionService = VisitSuggestionService()
     private var latestRefreshID = UUID()

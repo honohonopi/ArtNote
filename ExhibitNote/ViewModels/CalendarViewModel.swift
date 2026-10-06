@@ -6,11 +6,13 @@
 //
 
 import Foundation
+import Observation
 
 @MainActor
-final class CalendarViewModel: ObservableObject {
-    @Published var selectedDate: Date? = nil
-    @Published var showDaySheet: Bool = false
+@Observable
+final class CalendarViewModel {
+    var selectedDate: Date? = nil
+    var showDaySheet: Bool = false
 
     func exhibitions(on date: Date, from all: [Exhibition]) -> [Exhibition] {
         let cal = Calendar.japan
