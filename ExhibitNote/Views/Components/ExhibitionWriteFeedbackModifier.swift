@@ -31,7 +31,7 @@ final class ExhibitionWriteState {
     }
 }
 
-private struct ExhibitionWriteFeedback: ViewModifier {
+private struct ExhibitionWriteFeedbackModifier: ViewModifier {
     var state: ExhibitionWriteState
 
     func body(content: Content) -> some View {
@@ -55,6 +55,6 @@ private struct ExhibitionWriteFeedback: ViewModifier {
 
 extension View {
     func exhibitionWriteFeedback(_ state: ExhibitionWriteState) -> some View {
-        modifier(ExhibitionWriteFeedback(state: state))
+        modifier(ExhibitionWriteFeedbackModifier(state: state))
     }
 }
