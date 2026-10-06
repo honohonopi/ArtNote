@@ -15,14 +15,14 @@ import UniformTypeIdentifiers
 
 struct ExhibitionEditView: View {
     @Environment(\.modelContext) private var context
-    @StateObject private var writeState = ExhibitionWriteState()
+    @State private var writeState = ExhibitionWriteState()
     @Environment(\.dismiss) private var dismiss
     let exhibition: Exhibition
-    @StateObject private var vm: ExhibitionEditViewModel
+    @State private var vm: ExhibitionEditViewModel
 
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
-        _vm = StateObject(wrappedValue: ExhibitionEditViewModel(exhibition: exhibition))
+        _vm = State(initialValue: ExhibitionEditViewModel(exhibition: exhibition))
     }
     
     var body: some View {

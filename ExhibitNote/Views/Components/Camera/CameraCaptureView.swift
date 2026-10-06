@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import Observation
 import SwiftUI
 import UIKit
 
@@ -14,7 +15,7 @@ struct CameraCaptureView: View {
     let onCancel: () -> Void
     let onComplete: ([UIImage]) -> Void
 
-    @StateObject private var model = CameraCaptureModel()
+    @State private var model = CameraCaptureModel()
 
     init(maxCount: Int = 2, onCancel: @escaping () -> Void, onComplete: @escaping ([UIImage]) -> Void) {
         self.maxCount = maxCount
@@ -167,11 +168,13 @@ private final class PreviewView: UIView {
     }
 }
 
-private final class CameraCaptureModel: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
-    @Published var photos: [UIImage] = []
-    @Published var isReady = false
-    @Published var showError = false
-    @Published var errorMessage: String?
+@MainActor
+@Observable
+private final class CameraCaptureModel: NSObject, @preconcurrency AVCapturePhotoCaptureDelegate {
+    var photos: [UIImage] = []
+    var isReady = false
+    var showError = false
+    var errorMessage: String?
 
     let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()

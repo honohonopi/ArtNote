@@ -7,11 +7,13 @@
 
 import Foundation
 import MapKit
+import Observation
 
 @MainActor
-final class LocationSearchViewModel: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
-    @Published var query: String = ""
-    @Published var suggestions: [MKLocalSearchCompletion] = []
+@Observable
+final class LocationSearchViewModel: NSObject, @preconcurrency MKLocalSearchCompleterDelegate {
+    var query: String = ""
+    var suggestions: [MKLocalSearchCompletion] = []
 
     private let completer = MKLocalSearchCompleter()
     private var region: MKCoordinateRegion?

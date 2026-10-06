@@ -11,7 +11,7 @@ struct ExhibitionImportSheetView: View {
     let onComplete: () -> Void
 
     @Environment(\.modelContext) private var context
-    @StateObject private var writeState = ExhibitionWriteState()
+    @State private var writeState = ExhibitionWriteState()
     @State private var vm: ExhibitionImportViewModel
     @Environment(\.dismiss) private var dismiss
 

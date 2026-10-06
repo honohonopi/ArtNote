@@ -22,7 +22,7 @@ struct HomeView: View {
     
     @State private var vm = HomeViewModel()
 
-    @StateObject private var loc = LocationManager()
+    @State private var loc = LocationManager()
     
     @State private var showSettings = false
 

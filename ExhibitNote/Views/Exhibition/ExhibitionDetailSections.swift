@@ -75,7 +75,7 @@ struct ExhibitionDetailSummarySectionView: View {
 }
 
 struct ExhibitionDetailDetailsSectionView: View {
-    @ObservedObject var vm: ExhibitionDetailViewModel
+    @Bindable var vm: ExhibitionDetailViewModel
     let userAdmissionCategoryRaw: String
 
     var body: some View {

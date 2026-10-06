@@ -1,20 +1,21 @@
 import Foundation
-import Combine
+import Observation
 import EventKit
 
 @MainActor
-final class AddVisitEventViewModel: ObservableObject {
+@Observable
+final class AddVisitEventViewModel {
     let initialStart: Date
     let availableEnd: Date?
 
-    @Published private(set) var visitDate: Date
-    @Published private(set) var startTime: Date
-    @Published private(set) var endTime: Date
-    @Published private(set) var isSaving = false
-    @Published private(set) var errorMessage: String?
-    @Published private(set) var shouldOpenCalendarSettings = false
-    @Published private(set) var addedStartDate: Date?
-    @Published var showSuccess = false
+    private(set) var visitDate: Date
+    private(set) var startTime: Date
+    private(set) var endTime: Date
+    private(set) var isSaving = false
+    private(set) var errorMessage: String?
+    private(set) var shouldOpenCalendarSettings = false
+    private(set) var addedStartDate: Date?
+    var showSuccess = false
 
     private let exhibition: Exhibition
     private let eventService: any VisitEventSaving

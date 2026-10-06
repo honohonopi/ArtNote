@@ -12,10 +12,10 @@ import SwiftData
 struct ExhibitionDetailView: View {
     let exhibition: Exhibition
     @Environment(\.modelContext) private var context
-    @StateObject private var writeState = ExhibitionWriteState()
+    @State private var writeState = ExhibitionWriteState()
     @Environment(\.dismiss) private var dismiss
 
-    @StateObject private var vm: ExhibitionDetailViewModel
+    @State private var vm: ExhibitionDetailViewModel
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
     @State private var shareItem: ShareItem?
     @State private var isPreparingShare = false
@@ -25,7 +25,7 @@ struct ExhibitionDetailView: View {
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
-        _vm = StateObject(wrappedValue: ExhibitionDetailViewModel(exhibition: exhibition))
+        _vm = State(initialValue: ExhibitionDetailViewModel(exhibition: exhibition))
     }
     
     var body: some View {

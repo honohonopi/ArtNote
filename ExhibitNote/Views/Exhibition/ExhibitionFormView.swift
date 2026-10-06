@@ -7,8 +7,9 @@
 
 // 展覧会登録フォーム
 import SwiftUI
+import Observation
 import UniformTypeIdentifiers
-import PDFKit
+@preconcurrency import PDFKit
 import SwiftData
 import PhotosUI
 import CoreLocation
@@ -18,9 +19,9 @@ import UIKit
 struct ExhibitionFormView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @StateObject private var writeState = ExhibitionWriteState()
+    @State private var writeState = ExhibitionWriteState()
 
-    @StateObject private var vm = ExhibitionFormViewModel()
+    @State private var vm = ExhibitionFormViewModel()
 
 
     // 表示用フォーマッタ
@@ -333,7 +334,7 @@ private struct PDFPagePickerSheet: View {
     let pageCount: Int
     let onSelect: ([Int]) -> Void
     let onCancel: () -> Void
-    @StateObject private var loader: PDFThumbnailLoader
+    @State private var loader: PDFThumbnailLoader
     @State private var selectedIndices: Set<Int>
     @State private var showLimitAlert = false
 
@@ -342,7 +343,7 @@ private struct PDFPagePickerSheet: View {
         self.pageCount = pageCount
         self.onSelect = onSelect
         self.onCancel = onCancel
-        _loader = StateObject(wrappedValue: PDFThumbnailLoader(url: url, pageCount: pageCount))
+        _loader = State(initialValue: PDFThumbnailLoader(url: url, pageCount: pageCount))
         _selectedIndices = State(initialValue: pageCount > 0 ? [0] : [])
     }
 
@@ -425,8 +426,10 @@ private struct PDFPageThumbnailView: View {
     }
 }
 
-private final class PDFThumbnailLoader: ObservableObject {
-    @Published var thumbnails: [Int: UIImage] = [:]
+@MainActor
+@Observable
+private final class PDFThumbnailLoader {
+    var thumbnails: [Int: UIImage] = [:]
     private let url: URL
     private let pageCount: Int
     private let accessGranted: Bool

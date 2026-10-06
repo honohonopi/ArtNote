@@ -6,21 +6,23 @@
 //
 
 import SwiftUI
+import Observation
 import MapKit
 import UIKit
 
 @MainActor
-final class ExhibitionDetailViewModel: ObservableObject {
+@Observable
+final class ExhibitionDetailViewModel {
     let exhibition: Exhibition
 
-    @Published var showDeleteConfirm = false
-    @Published var showEdit = false
-    @Published var showPlanner = false
-    @Published var visitDate = Date()
-    @Published var showAddDone = false
-    @Published var showMapChoice = false
-    @Published var showAdmissionDetails = false
-    @Published var showScheduleDetails = false
+    var showDeleteConfirm = false
+    var showEdit = false
+    var showPlanner = false
+    var visitDate = Date()
+    var showAddDone = false
+    var showMapChoice = false
+    var showAdmissionDetails = false
+    var showScheduleDetails = false
 
     init(exhibition: Exhibition) {
         self.exhibition = exhibition

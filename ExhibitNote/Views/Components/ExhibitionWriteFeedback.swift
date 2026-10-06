@@ -1,11 +1,13 @@
 import SwiftUI
+import Observation
 
-/// Keeps the form open on write failure and prevents duplicate submissions.
+/// 書き込み失敗時は画面を維持し、保存・削除の連打を防ぐ。
 @MainActor
-final class ExhibitionWriteState: ObservableObject {
-    @Published private(set) var isRunning = false
-    @Published var errorMessage: String?
-    @Published private(set) var errorTitle = "保存できませんでした"
+@Observable
+final class ExhibitionWriteState {
+    private(set) var isRunning = false
+    var errorMessage: String?
+    private(set) var errorTitle = "保存できませんでした"
 
     func run(
         deleting: Bool = false,
@@ -30,7 +32,7 @@ final class ExhibitionWriteState: ObservableObject {
 }
 
 private struct ExhibitionWriteFeedback: ViewModifier {
-    @ObservedObject var state: ExhibitionWriteState
+    var state: ExhibitionWriteState
 
     func body(content: Content) -> some View {
         content

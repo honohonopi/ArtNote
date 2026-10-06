@@ -6,62 +6,64 @@
 //
 
 import SwiftUI
+import Observation
 import MapKit
 import UIKit
 
 @MainActor
-final class ExhibitionEditViewModel: ObservableObject {
-    @Published var title: String
-    @Published var venue: String
-    @Published var startDate: Date
-    @Published var endDate: Date
-    @Published var isApplyingAutoDates = false
-    @Published var hasManuallyEditedDates = false
-    @Published var urlString: String
-    @Published var catalogTotalCountStr: String
-    @Published var addressLine: String
+@Observable
+final class ExhibitionEditViewModel {
+    var title: String
+    var venue: String
+    var startDate: Date
+    var endDate: Date
+    var isApplyingAutoDates = false
+    var hasManuallyEditedDates = false
+    var urlString: String
+    var catalogTotalCountStr: String
+    var addressLine: String
 
-    @Published var pickedColor: Color?
-    @Published var autoColor: UIColor?
-    @Published var posterThumbData: Data?
-    @Published var localPreviewImage: UIImage?
+    var pickedColor: Color?
+    var autoColor: UIColor?
+    var posterThumbData: Data?
+    var localPreviewImage: UIImage?
 
-    @Published var showCamera = false
-    @Published var showLibrary = false
+    var showCamera = false
+    var showLibrary = false
 
-    @Published var tempCoordinate: CLLocationCoordinate2D?
-    @Published var previewRegion: MKCoordinateRegion
-    @Published var mapPickerPayload: MapPickerPayload?
+    var tempCoordinate: CLLocationCoordinate2D?
+    var previewRegion: MKCoordinateRegion
+    var mapPickerPayload: MapPickerPayload?
 
-    @Published var scheduleOpenTime: String?
-    @Published var scheduleCloseTime: String?
-    @Published var scheduleLastEntryTime: String?
-    @Published var scheduleClosedWeekdays: [Weekday]
-    @Published var scheduleHolidayHandling: HolidayHandling?
-    @Published var scheduleClosedDateRules: [DateRule]
-    @Published var scheduleOpenDateRules: [DateRule]
-    @Published var scheduleSpecialOpenings: [SpecialOpening]
+    var scheduleOpenTime: String?
+    var scheduleCloseTime: String?
+    var scheduleLastEntryTime: String?
+    var scheduleClosedWeekdays: [Weekday]
+    var scheduleHolidayHandling: HolidayHandling?
+    var scheduleClosedDateRules: [DateRule]
+    var scheduleOpenDateRules: [DateRule]
+    var scheduleSpecialOpenings: [SpecialOpening]
 
-    @Published var editingSpecialOpeningIndex: Int? = nil
-    @Published var showSpecialOpeningEditor = false
-    @Published var specialOpeningMode: SpecialOpeningInputMode = .date
-    @Published var draftSpecialOpeningDate = Date()
-    @Published var draftSpecialOpeningStartDate = Date()
-    @Published var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-    @Published var draftSpecialOpeningWeekdays: Set<Weekday> = []
-    @Published var draftSpecialOpeningOpenTime = "10:00"
-    @Published var draftSpecialOpeningCloseTime = "17:00"
-    @Published var draftSpecialOpeningLastEntryTime: String? = nil
+    var editingSpecialOpeningIndex: Int? = nil
+    var showSpecialOpeningEditor = false
+    var specialOpeningMode: SpecialOpeningInputMode = .date
+    var draftSpecialOpeningDate = Date()
+    var draftSpecialOpeningStartDate = Date()
+    var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    var draftSpecialOpeningWeekdays: Set<Weekday> = []
+    var draftSpecialOpeningOpenTime = "10:00"
+    var draftSpecialOpeningCloseTime = "17:00"
+    var draftSpecialOpeningLastEntryTime: String? = nil
 
-    @Published var admissionFees: [AdmissionFeeRule]
-    @Published var reservationRequired: Bool?
-    @Published var showAdmissionFees = false
-    @Published var showAdmissionFeeEditor = false
-    @Published var editingAdmissionFeeIndex: Int? = nil
-    @Published var draftAdmissionLabel: String = ""
-    @Published var draftAdmissionPriceText: String = ""
-    @Published var draftAdmissionNote: String = ""
-    @Published var draftAdmissionTargets: [UserTicketCategory] = []
+    var admissionFees: [AdmissionFeeRule]
+    var reservationRequired: Bool?
+    var showAdmissionFees = false
+    var showAdmissionFeeEditor = false
+    var editingAdmissionFeeIndex: Int? = nil
+    var draftAdmissionLabel: String = ""
+    var draftAdmissionPriceText: String = ""
+    var draftAdmissionNote: String = ""
+    var draftAdmissionTargets: [UserTicketCategory] = []
 
     struct MapPickerPayload: Identifiable {
         let id = UUID()

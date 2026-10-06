@@ -13,7 +13,7 @@ struct MapPickerView: View {
     
     @State private var region: MKCoordinateRegion
     @State private var centerCoord: CLLocationCoordinate2D
-    @StateObject private var searchVM = LocationSearchViewModel()
+    @State private var searchVM = LocationSearchViewModel()
     @State private var showSearch = false
     
     let onSelect: (CLLocationCoordinate2D, String?) -> Void
@@ -151,5 +151,4 @@ struct MapPickerView: View {
         }
     }
 }
-
 

@@ -11,10 +11,10 @@ import UIKit
 struct AddVisitEventSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    @StateObject private var vm: AddVisitEventViewModel
+    @State private var vm: AddVisitEventViewModel
 
     init(exhibition: Exhibition, initialStart: Date, availableEnd: Date? = nil) {
-        _vm = StateObject(wrappedValue: AddVisitEventViewModel(
+        _vm = State(initialValue: AddVisitEventViewModel(
             exhibition: exhibition,
             initialStart: initialStart,
             availableEnd: availableEnd

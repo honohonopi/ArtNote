@@ -6,12 +6,13 @@
 //
 
 import CoreLocation
-import Combine
+import Observation
 
 @MainActor
-final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published var authorization: CLAuthorizationStatus = .notDetermined
-    @Published var location: CLLocation?
+@Observable
+final class LocationManager: NSObject, @preconcurrency CLLocationManagerDelegate {
+    var authorization: CLAuthorizationStatus = .notDetermined
+    var location: CLLocation?
 
     private let manager = CLLocationManager()
 

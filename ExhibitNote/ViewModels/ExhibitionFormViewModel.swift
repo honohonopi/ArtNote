@@ -6,90 +6,92 @@
 //
 
 import SwiftUI
+import Observation
 import MapKit
 import PhotosUI
 import UIKit
 
 @MainActor
-final class ExhibitionFormViewModel: ObservableObject {
-    @Published var title = ""
-    @Published var venue = ""
-    @Published var startDate = Date()
-    @Published var endDate = Calendar.japan.date(byAdding: .day, value: 30, to: Date()) ?? Date()
-    @Published var urlString: String = ""
-    @Published var catalogTotalCountStr: String = ""
+@Observable
+final class ExhibitionFormViewModel {
+    var title = ""
+    var venue = ""
+    var startDate = Date()
+    var endDate = Calendar.japan.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+    var urlString: String = ""
+    var catalogTotalCountStr: String = ""
 
-    @Published var showPhotoPicker = false
-    @Published var selectedItems: [PhotosPickerItem] = []
-    @Published var ocrAlertMessage: String? = nil
-    @Published var showOcrAlert = false
-    @Published var showFoundationModelUnavailableAlert = false
-    @Published var showFoundationModelDontShowWarning = false
-    @Published var showPDFPicker = false
-    @Published var pdfSelection: PDFSelection? = nil
+    var showPhotoPicker = false
+    var selectedItems: [PhotosPickerItem] = []
+    var ocrAlertMessage: String? = nil
+    var showOcrAlert = false
+    var showFoundationModelUnavailableAlert = false
+    var showFoundationModelDontShowWarning = false
+    var showPDFPicker = false
+    var pdfSelection: PDFSelection? = nil
 
-    @Published var titleOptions: [String] = []
-    @Published var venueOptions: [String] = []
-    @Published var dateOptions: [(Date, Date)] = []
-    @Published var urlOptions: [String] = []
+    var titleOptions: [String] = []
+    var venueOptions: [String] = []
+    var dateOptions: [(Date, Date)] = []
+    var urlOptions: [String] = []
 
-    @Published var selectedTitle: String?
-    @Published var selectedVenue: String?
-    @Published var selectedDateIndex: Int = 0
-    @Published var selectedURL: String?
-    @Published var hasManuallyEditedDates = false
-    @Published var isApplyingAutoDates = false
-    @Published var isAIAnalyzing = false
-    @Published var isExtracting = false
+    var selectedTitle: String?
+    var selectedVenue: String?
+    var selectedDateIndex: Int = 0
+    var selectedURL: String?
+    var hasManuallyEditedDates = false
+    var isApplyingAutoDates = false
+    var isAIAnalyzing = false
+    var isExtracting = false
 
-    @Published var showReviewSheet = false
-    @Published var showBasicOnlyNotice = false
-    @Published var showMissingAlert = false
-    @Published var missingAlertMessage: String = ""
-    @Published var pendingAlertMessage: String? = nil
+    var showReviewSheet = false
+    var showBasicOnlyNotice = false
+    var showMissingAlert = false
+    var missingAlertMessage: String = ""
+    var pendingAlertMessage: String? = nil
 
-    @Published var pickedColor: Color? = nil
-    @Published var autoColor: UIColor? = nil
-    @Published var posterThumbData: Data? = nil
+    var pickedColor: Color? = nil
+    var autoColor: UIColor? = nil
+    var posterThumbData: Data? = nil
 
-    @Published var mapPickerPayload: MapPickerPayload? = nil
-    @Published var tempCoordinate: CLLocationCoordinate2D?
-    @Published var showCamera = false
-    @Published var previewRegion = MKCoordinateRegion(
+    var mapPickerPayload: MapPickerPayload? = nil
+    var tempCoordinate: CLLocationCoordinate2D?
+    var showCamera = false
+    var previewRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
     )
-    @Published var mapInitialQuery: String? = nil
-    @Published var addressLine = ""
+    var mapInitialQuery: String? = nil
+    var addressLine = ""
 
-    @Published var scheduleOpenTime: String? = nil
-    @Published var scheduleCloseTime: String? = nil
-    @Published var scheduleLastEntryTime: String? = nil
-    @Published var scheduleClosedWeekdays: [Weekday] = []
-    @Published var scheduleHolidayHandling: HolidayHandling? = nil
-    @Published var scheduleClosedDateRules: [DateRule] = []
-    @Published var scheduleOpenDateRules: [DateRule] = []
-    @Published var scheduleSpecialOpenings: [SpecialOpening] = []
-    @Published var editingSpecialOpeningIndex: Int? = nil
-    @Published var showSpecialOpeningEditor = false
-    @Published var specialOpeningMode: SpecialOpeningInputMode = .date
-    @Published var draftSpecialOpeningDate = Date()
-    @Published var draftSpecialOpeningStartDate = Date()
-    @Published var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-    @Published var draftSpecialOpeningWeekdays: Set<Weekday> = []
-    @Published var draftSpecialOpeningOpenTime = "10:00"
-    @Published var draftSpecialOpeningCloseTime = "17:00"
-    @Published var draftSpecialOpeningLastEntryTime: String? = nil
+    var scheduleOpenTime: String? = nil
+    var scheduleCloseTime: String? = nil
+    var scheduleLastEntryTime: String? = nil
+    var scheduleClosedWeekdays: [Weekday] = []
+    var scheduleHolidayHandling: HolidayHandling? = nil
+    var scheduleClosedDateRules: [DateRule] = []
+    var scheduleOpenDateRules: [DateRule] = []
+    var scheduleSpecialOpenings: [SpecialOpening] = []
+    var editingSpecialOpeningIndex: Int? = nil
+    var showSpecialOpeningEditor = false
+    var specialOpeningMode: SpecialOpeningInputMode = .date
+    var draftSpecialOpeningDate = Date()
+    var draftSpecialOpeningStartDate = Date()
+    var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    var draftSpecialOpeningWeekdays: Set<Weekday> = []
+    var draftSpecialOpeningOpenTime = "10:00"
+    var draftSpecialOpeningCloseTime = "17:00"
+    var draftSpecialOpeningLastEntryTime: String? = nil
 
-    @Published var admissionFees: [AdmissionFeeRule] = []
-    @Published var reservationRequired: Bool? = nil
-    @Published var showAdmissionFees = false
-    @Published var showAdmissionFeeEditor = false
-    @Published var editingAdmissionFeeIndex: Int? = nil
-    @Published var draftAdmissionLabel: String = ""
-    @Published var draftAdmissionPriceText: String = ""
-    @Published var draftAdmissionNote: String = ""
-    @Published var draftAdmissionTargets: [UserTicketCategory] = []
+    var admissionFees: [AdmissionFeeRule] = []
+    var reservationRequired: Bool? = nil
+    var showAdmissionFees = false
+    var showAdmissionFeeEditor = false
+    var editingAdmissionFeeIndex: Int? = nil
+    var draftAdmissionLabel: String = ""
+    var draftAdmissionPriceText: String = ""
+    var draftAdmissionNote: String = ""
+    var draftAdmissionTargets: [UserTicketCategory] = []
 
     struct MapPickerPayload: Identifiable {
         let id = UUID()
