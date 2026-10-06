@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import PhotosUI
 import UIKit
 
 struct ExhibitionEditView: View {
@@ -152,12 +153,6 @@ struct ExhibitionEditView: View {
                     onCommit: vm.commitAdmissionFee
                 )
             }
-            .sheet(isPresented: $vm.showLibrary) {
-                PhotoLibraryPicker { image in
-                    if let img = image { vm.handlePickedImage(img) }
-                    vm.showLibrary = false
-                }
-            }
             .sheet(isPresented: $vm.showCamera) {
                 CameraPicker { image in
                     if let img = image { vm.handlePickedImage(img) }
@@ -166,6 +161,14 @@ struct ExhibitionEditView: View {
             }
         }
         .exhibitionWriteFeedback(writeState)
+        .photosPicker(
+            isPresented: $vm.showLibrary,
+            selection: $vm.selectedPhotoItem,
+            matching: .images
+        )
+        .onChange(of: vm.selectedPhotoItem) { _, item in
+            Task { await vm.handleSelectedPhotoItem(item) }
+        }
     }
 
 }

@@ -407,8 +407,7 @@ final class ExhibitionFormViewModel {
 
         var images: [UIImage] = []
         for item in items.prefix(2) {
-            if let data = try? await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data) {
+            if let image = await item.loadUIImage() {
                 images.append(image)
             }
         }

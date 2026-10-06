@@ -8,6 +8,7 @@
 import SwiftUI
 import Observation
 import MapKit
+import PhotosUI
 import SwiftData
 import UIKit
 
@@ -33,6 +34,7 @@ final class ExhibitionEditViewModel {
 
     var showCamera = false
     var showLibrary = false
+    var selectedPhotoItem: PhotosPickerItem?
 
     var tempCoordinate: CLLocationCoordinate2D?
     var previewRegion: MKCoordinateRegion
@@ -217,6 +219,13 @@ final class ExhibitionEditViewModel {
             pickedColor = Color(ui)
             autoColor = ui
         }
+    }
+
+    func handleSelectedPhotoItem(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
+        defer { selectedPhotoItem = nil }
+        guard let image = await item.loadUIImage() else { return }
+        handlePickedImage(image)
     }
 
     func triggerGeocoding() {
