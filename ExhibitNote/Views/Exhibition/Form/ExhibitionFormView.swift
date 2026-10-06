@@ -116,13 +116,7 @@ struct ExhibitionFormView: View {
                     isApplyingAutoDates: vm.isApplyingAutoDates,
                     hasManuallyEditedDates: $vm.hasManuallyEditedDates,
                     onVenueSubmit: vm.triggerGeocoding,
-                    onTapMap: {
-                        let q = vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? vm.venue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        : vm.addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !q.isEmpty else { return }
-                        vm.mapPickerPayload = ExhibitionFormViewModel.MapPickerPayload(query: q)
-                    }
+                    onTapMap: vm.prepareMapPicker
                 )
                 AdmissionInfoSectionView(
                     showAdmissionFees: $vm.showAdmissionFees,
@@ -237,21 +231,9 @@ struct ExhibitionFormView: View {
                     onCommit: vm.commitAdmissionFee
                 )
             }
-            .sheet(item: $vm.mapPickerPayload) { payload in
-                NavigationStack {
-                    MapPickerView(seed: vm.tempCoordinate, initialQuery: payload.query) { pickedCoord, pickedAddress in
-                        // 座標を反映
-                        vm.tempCoordinate = pickedCoord
-                        vm.previewRegion.center = pickedCoord
-                        vm.previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                        // 住所を反映（未入力なら反映／常に上書き、好みで）
-                        if let addr = pickedAddress, !addr.isEmpty {
-                            if vm.addressLine.isEmpty {
-                                vm.addressLine = addr
-                            } else {
-                            }
-                        }
-                    }
+            .sheet(isPresented: $vm.showMapPicker) {
+                MapPickerView(seed: vm.tempCoordinate) { pickedCoord, pickedAddress in
+                    vm.applyMapSelection(coordinate: pickedCoord, address: pickedAddress)
                 }
             }
         }

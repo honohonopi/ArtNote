@@ -54,14 +54,13 @@ final class ExhibitionFormViewModel {
     var autoColor: UIColor? = nil
     var posterThumbData: Data? = nil
 
-    var mapPickerPayload: MapPickerPayload? = nil
+    var showMapPicker = false
     var tempCoordinate: CLLocationCoordinate2D?
     var showCamera = false
     var previewRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
     )
-    var mapInitialQuery: String? = nil
     var addressLine = ""
 
     var scheduleOpenTime: String? = nil
@@ -93,15 +92,23 @@ final class ExhibitionFormViewModel {
     var draftAdmissionNote: String = ""
     var draftAdmissionTargets: [UserTicketCategory] = []
 
-    struct MapPickerPayload: Identifiable {
-        let id = UUID()
-        let query: String
-    }
-
     struct PDFSelection: Identifiable {
         let id = UUID()
         let url: URL
         let pageCount: Int
+    }
+
+    func prepareMapPicker() {
+        showMapPicker = true
+    }
+
+    func applyMapSelection(coordinate: CLLocationCoordinate2D, address: String?) {
+        tempCoordinate = coordinate
+        previewRegion.center = coordinate
+        previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        if let address, !address.isEmpty {
+            addressLine = address
+        }
     }
 
     func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
@@ -482,8 +489,6 @@ final class ExhibitionFormViewModel {
                 tempCoordinate = c
                 previewRegion.center = c
                 previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            } else {
-                mapInitialQuery = v
             }
         }
     }

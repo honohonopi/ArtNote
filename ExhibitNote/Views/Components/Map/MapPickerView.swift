@@ -10,31 +10,35 @@ import MapKit
 
 struct MapPickerView: View {
     @Environment(\.dismiss) private var dismiss
-    
+
+    @State private var cameraPosition: MapCameraPosition
     @State private var region: MKCoordinateRegion
     @State private var centerCoord: CLLocationCoordinate2D
     @State private var searchVM = LocationSearchViewModel()
-    @State private var showSearch = false
-    
+
     let onSelect: (CLLocationCoordinate2D, String?) -> Void
-    let initialQuery: String?
-    
-    init(seed: CLLocationCoordinate2D?, initialQuery: String? = nil, onSelect: @escaping (CLLocationCoordinate2D, String?) -> Void) {
+
+    init(seed: CLLocationCoordinate2D?, onSelect: @escaping (CLLocationCoordinate2D, String?) -> Void) {
         let center = seed ?? CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671)
+        let initialRegion = MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
         _centerCoord = State(initialValue: center)
-        _region = State(initialValue: MKCoordinateRegion(center: center,
-                                                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)))
-        self.initialQuery = initialQuery
+        _region = State(initialValue: initialRegion)
+        _cameraPosition = State(initialValue: .region(initialRegion))
         self.onSelect = onSelect
     }
     
     var body: some View {
         NavigationStack {
             ZStack {
-                CenterTrackingMap(region: $region, center: $centerCoord)
+                Map(position: $cameraPosition, interactionModes: [.pan, .zoom])
                     .ignoresSafeArea(edges: .bottom)
-                    .onReceive(NotificationCenter.default.publisher(for: .MKMapViewRegionDidChange)) { _ in
-                        searchVM.updateBiasRegion(region)
+                    .onMapCameraChange(frequency: .onEnd) { context in
+                        region = context.region
+                        centerCoord = context.region.center
+                        searchVM.updateBiasRegion(context.region)
                     }
                 
                 Image(systemName: "mappin.circle.fill")
@@ -44,28 +48,7 @@ struct MapPickerView: View {
                     .allowsHitTesting(false)
             }
             .task {
-                if let q = initialQuery?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !q.isEmpty {
-                    // 検索バーを開いてからクエリを反映
-                    await MainActor.run {
-                        showSearch = true
-                        searchVM.query = q
-                    }
-                    // 現在の地図範囲をバイアスに
-                    searchVM.updateBiasRegion(region)
-                    // サジェスト更新（onChangeより先に明示呼び出し）
-                    searchVM.onQueryChange(q)
-                    // UI同期のためにごく短い待機
-                    try? await Task.sleep(nanoseconds: 150_000_000)
-                    // 実検索して地図を寄せる
-                    if let coord = await searchVM.resolveRawQuery() {
-                        await MainActor.run {
-                            region = MKCoordinateRegion(center: coord,
-                                                        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
-                            centerCoord = coord
-                        }
-                    }
-                }
+                searchVM.updateBiasRegion(region)
             }
             .overlay(alignment: .bottom) {
                 Button {
@@ -89,9 +72,11 @@ struct MapPickerView: View {
             .navigationTitle("会場の位置を選択")
             .navigationBarTitleDisplayMode(.inline)
             
-            // 🔎 検索バー
+            // 検索バー
             .searchable(text: $searchVM.query, placement: .navigationBarDrawer, prompt: "場所や施設名を検索")
-            .onChange(of: searchVM.query) { searchVM.onQueryChange($0) }
+            .onChange(of: searchVM.query) { _, query in
+                searchVM.onQueryChange(query)
+            }
             
             // 候補サジェスト
             .searchSuggestions {
@@ -100,9 +85,13 @@ struct MapPickerView: View {
                         Task {
                             if let coord = await searchVM.resolve(item) {
                                 // 見つけた場所へ地図を移動
-                                region = MKCoordinateRegion(center: coord,
-                                                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                                let newRegion = MKCoordinateRegion(
+                                    center: coord,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                                )
+                                region = newRegion
                                 centerCoord = coord
+                                cameraPosition = .region(newRegion)
                                 searchVM.query = ""   // 入力クリア（任意）
                             }
                         }
@@ -118,9 +107,13 @@ struct MapPickerView: View {
             .onSubmit(of: .search) {
                 Task {
                     if let coord = await searchVM.resolveRawQuery() {
-                        region = MKCoordinateRegion(center: coord,
-                                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01))
+                        let newRegion = MKCoordinateRegion(
+                            center: coord,
+                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                        )
+                        region = newRegion
                         centerCoord = coord
+                        cameraPosition = .region(newRegion)
                         searchVM.query = ""
                     }
                 }
@@ -151,4 +144,3 @@ struct MapPickerView: View {
         }
     }
 }
-

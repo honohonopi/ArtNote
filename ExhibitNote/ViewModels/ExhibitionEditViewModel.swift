@@ -36,7 +36,7 @@ final class ExhibitionEditViewModel {
 
     var tempCoordinate: CLLocationCoordinate2D?
     var previewRegion: MKCoordinateRegion
-    var mapPickerPayload: MapPickerPayload?
+    var showMapPicker = false
 
     var scheduleOpenTime: String?
     var scheduleCloseTime: String?
@@ -68,11 +68,6 @@ final class ExhibitionEditViewModel {
     var draftAdmissionNote: String = ""
     var draftAdmissionTargets: [UserTicketCategory] = []
 
-    struct MapPickerPayload: Identifiable {
-        let id = UUID()
-        let query: String
-    }
-
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
         title = exhibition.title
@@ -102,8 +97,6 @@ final class ExhibitionEditViewModel {
                 span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
             )
         }
-        mapPickerPayload = nil
-
         scheduleOpenTime = exhibition.scheduleOpenTime
         scheduleCloseTime = exhibition.scheduleCloseTime
         scheduleLastEntryTime = exhibition.scheduleLastEntryTime
@@ -127,17 +120,14 @@ final class ExhibitionEditViewModel {
     }
 
     func prepareMapPicker() {
-        let address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
-        let query = address.isEmpty ? venue.trimmingCharacters(in: .whitespacesAndNewlines) : address
-        guard !query.isEmpty else { return }
-        mapPickerPayload = MapPickerPayload(query: query)
+        showMapPicker = true
     }
 
     func applyMapSelection(coordinate: CLLocationCoordinate2D, address: String?) {
         tempCoordinate = coordinate
         previewRegion.center = coordinate
         previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        if let address, !address.isEmpty, addressLine.isEmpty {
+        if let address, !address.isEmpty {
             addressLine = address
         }
     }

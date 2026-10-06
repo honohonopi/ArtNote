@@ -120,11 +120,9 @@ struct ExhibitionEditView: View {
                     }
                 }
             }
-            .sheet(item: $vm.mapPickerPayload) { payload in
-                NavigationStack {
-                    MapPickerView(seed: vm.tempCoordinate, initialQuery: payload.query) { pickedCoord, pickedAddress in
-                        vm.applyMapSelection(coordinate: pickedCoord, address: pickedAddress)
-                    }
+            .sheet(isPresented: $vm.showMapPicker) {
+                MapPickerView(seed: vm.tempCoordinate) { pickedCoord, pickedAddress in
+                    vm.applyMapSelection(coordinate: pickedCoord, address: pickedAddress)
                 }
             }
             .sheet(isPresented: $vm.showSpecialOpeningEditor) {
