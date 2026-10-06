@@ -95,6 +95,25 @@ final class ReminderService {
         for task in tasks { await task.value }
     }
 
+    /// 最新の展覧会と設定を読み込み、期限通知を全件再設定する。
+    /// データ取得に成功した場合はtrueを返す。個別の予約失敗は再試行対象として保持する。
+    @discardableResult
+    func rescheduleAllNotifications(in context: ModelContext) async -> Bool {
+        do {
+            let exhibitions = try context.fetch(FetchDescriptor<Exhibition>())
+            let settings = settingsStore.endingSoonNotificationSettings
+            await rescheduleAllNotifications(
+                exhibitions: exhibitions,
+                isEnabled: settings.isEnabled,
+                notificationTime: settings.notificationTime
+            )
+            return true
+        } catch {
+            logger.error("期限通知の全件再設定用データ取得に失敗: \(error.localizedDescription, privacy: .private)")
+            return false
+        }
+    }
+
     /// 起動・復帰時に、失敗した期限通知だけを再設定する。バックグラウンドの定期実行は行わない。
     /// データ取得に失敗した場合は保留し、実行時に最新のデータ・設定を読み直す。
     func retryPendingEndingSoonNotifications(in context: ModelContext) async {
@@ -127,18 +146,9 @@ final class ReminderService {
         guard !defaults.bool(forKey: key), !isMigratingTimeZone else { return }
         isMigratingTimeZone = true
         defer { isMigratingTimeZone = false }
-        do {
-            let exhibitions = try context.fetch(FetchDescriptor<Exhibition>())
-            let settings = settingsStore.endingSoonNotificationSettings
-            await rescheduleAllNotifications(
-                exhibitions: exhibitions,
-                isEnabled: settings.isEnabled,
-                notificationTime: settings.notificationTime
-            )
+        if await rescheduleAllNotifications(in: context) {
             // 予約失敗分は既存の再試行対象に残る。
             defaults.set(true, forKey: key)
-        } catch {
-            logger.error("通知の時間帯更新用データ取得に失敗: \(error.localizedDescription, privacy: .private)")
         }
     }
 

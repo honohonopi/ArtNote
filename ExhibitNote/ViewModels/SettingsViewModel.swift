@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 import UserNotifications
 
 @MainActor
@@ -10,25 +11,23 @@ final class SettingsViewModel {
     private(set) var authorizationErrorMessage: String?
 
     private let reminderService: ReminderService
-    private let settingsStore: SettingsStore
 
-    init(reminderService: ReminderService? = nil, settingsStore: SettingsStore? = nil) {
+    init(reminderService: ReminderService? = nil) {
         self.reminderService = reminderService ?? .shared
-        self.settingsStore = settingsStore ?? .shared
     }
 
     /// 設定画面を開いた時と、設定アプリから戻った時に許可状態を確認する。
-    func refreshAuthorization(exhibitions: [Exhibition]) async {
+    func refreshAuthorization(in context: ModelContext) async {
         let previous = notificationAuthorizationStatus
         let current = await reminderService.authorizationStatus()
         notificationAuthorizationStatus = current
         if previous == .denied && current == .authorized {
-            rescheduleNotifications(exhibitions: exhibitions)
+            rescheduleNotifications(in: context)
         }
     }
 
     /// 未選択の場合に許可を要求する。拒否された場合はViewが設定アプリへの案内を表示する。
-    func requestAuthorization(exhibitions: [Exhibition]) async {
+    func requestAuthorization(in context: ModelContext) async {
         guard !isRequestingAuthorization else { return }
         isRequestingAuthorization = true
         authorizationErrorMessage = nil
@@ -37,7 +36,7 @@ final class SettingsViewModel {
             let granted = try await reminderService.requestAuthorization()
             notificationAuthorizationStatus = await reminderService.authorizationStatus()
             if granted {
-                rescheduleNotifications(exhibitions: exhibitions)
+                rescheduleNotifications(in: context)
             }
         } catch {
             authorizationErrorMessage = "通知の許可を確認できませんでした。もう一度お試しください。"
@@ -45,14 +44,9 @@ final class SettingsViewModel {
         }
     }
 
-    func rescheduleNotifications(exhibitions: [Exhibition]) {
-        let settings = settingsStore.endingSoonNotificationSettings
+    func rescheduleNotifications(in context: ModelContext) {
         Task {
-            await reminderService.rescheduleAllNotifications(
-                exhibitions: exhibitions,
-                isEnabled: settings.isEnabled,
-                notificationTime: settings.notificationTime
-            )
+            await reminderService.rescheduleAllNotifications(in: context)
         }
     }
 }

@@ -5,10 +5,10 @@ import UIKit
 struct SettingsView: View {
     @State private var vm = SettingsViewModel()
     @Bindable private var settingsStore = SettingsStore.shared
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)]) private var allExhibitions: [Exhibition]
 
     var body: some View {
         NavigationStack {
@@ -29,7 +29,7 @@ struct SettingsView: View {
                     } else if vm.notificationAuthorizationStatus == .notDetermined {
                         Button("通知を許可する") {
                             Task {
-                                await vm.requestAuthorization(exhibitions: allExhibitions)
+                                await vm.requestAuthorization(in: context)
                             }
                         }
                         .disabled(vm.isRequestingAuthorization)
@@ -68,10 +68,10 @@ struct SettingsView: View {
             }
             .task(id: scenePhase) {
                 guard scenePhase == .active else { return }
-                await vm.refreshAuthorization(exhibitions: allExhibitions)
+                await vm.refreshAuthorization(in: context)
             }
             .onChange(of: settingsStore.endingSoonNotificationSettings) {
-                vm.rescheduleNotifications(exhibitions: allExhibitions)
+                vm.rescheduleNotifications(in: context)
             }
             .navigationTitle("設定")
             .navigationBarTitleDisplayMode(.inline)
