@@ -19,7 +19,7 @@ struct HomeView: View {
     @Query(sort: [SortDescriptor(\Exhibition.endDate, order: .forward)])
     private var allExhibitions: [Exhibition]
     
-    @StateObject private var vm = HomeViewModel()
+    @State private var vm = HomeViewModel()
 
     @StateObject private var loc = LocationManager()
     

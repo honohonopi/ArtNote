@@ -1,14 +1,15 @@
 import Foundation
-import Combine
+import Observation
 import CoreLocation
 import SwiftData
 
 /// Prepares home-screen data and coordinates nearby exhibition notifications.
 @MainActor
-final class HomeViewModel: ObservableObject {
-    @Published private(set) var nearbyExhibitions: [(Exhibition, Double)] = []
+@Observable
+final class HomeViewModel {
+    private(set) var nearbyExhibitions: [(Exhibition, Double)] = []
 
-    @Published private(set) var notificationAuthorizationGranted: Bool?
+    private(set) var notificationAuthorizationGranted: Bool?
 
     private let fixedNow: Date?
     private var now: Date { fixedNow ?? Date() }
