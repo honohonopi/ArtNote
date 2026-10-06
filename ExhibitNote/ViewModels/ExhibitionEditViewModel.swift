@@ -8,11 +8,14 @@
 import SwiftUI
 import Observation
 import MapKit
+import SwiftData
 import UIKit
 
 @MainActor
 @Observable
 final class ExhibitionEditViewModel {
+    private let exhibition: Exhibition
+
     var title: String
     var venue: String
     var startDate: Date
@@ -71,6 +74,7 @@ final class ExhibitionEditViewModel {
     }
 
     init(exhibition: Exhibition) {
+        self.exhibition = exhibition
         title = exhibition.title
         venue = exhibition.venue
         addressLine = exhibition.address ?? ""
@@ -116,7 +120,77 @@ final class ExhibitionEditViewModel {
         reservationRequired = exhibition.reservationRequired
     }
 
-    func applyChanges(to exhibition: Exhibition) {
+    func save(in context: ModelContext) async throws {
+        try await ExhibitionPersistenceService(context: context).update(exhibition) {
+            applyChanges(to: exhibition)
+        }
+    }
+
+    func prepareMapPicker() {
+        let address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = address.isEmpty ? venue.trimmingCharacters(in: .whitespacesAndNewlines) : address
+        guard !query.isEmpty else { return }
+        mapPickerPayload = MapPickerPayload(query: query)
+    }
+
+    func applyMapSelection(coordinate: CLLocationCoordinate2D, address: String?) {
+        tempCoordinate = coordinate
+        previewRegion.center = coordinate
+        previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        if let address, !address.isEmpty, addressLine.isEmpty {
+            addressLine = address
+        }
+    }
+
+    func beginAddingSpecialOpening() {
+        editingSpecialOpeningIndex = nil
+        prepareSpecialOpeningEditor()
+        showSpecialOpeningEditor = true
+    }
+
+    func beginEditingSpecialOpening(at index: Int) {
+        guard scheduleSpecialOpenings.indices.contains(index) else { return }
+        editingSpecialOpeningIndex = index
+        prepareSpecialOpeningEditor(for: scheduleSpecialOpenings[index])
+        showSpecialOpeningEditor = true
+    }
+
+    func beginAddingAdmissionFee() {
+        editingAdmissionFeeIndex = nil
+        prepareAdmissionFeeEditor()
+        showAdmissionFeeEditor = true
+    }
+
+    func beginEditingAdmissionFee(at index: Int) {
+        guard admissionFees.indices.contains(index) else { return }
+        editingAdmissionFeeIndex = index
+        prepareAdmissionFeeEditor(for: admissionFees[index])
+        showAdmissionFeeEditor = true
+    }
+
+    func removePoster() {
+        posterThumbData = nil
+        localPreviewImage = nil
+    }
+
+    func reservationStatusText(_ value: Bool?) -> String {
+        switch value {
+        case .some(true):
+            return "事前予約制"
+        case .some(false):
+            return "予約不要"
+        case .none:
+            return "記載なし"
+        }
+    }
+
+    func admissionPriceText(_ fee: AdmissionFeeRule) -> String? {
+        if fee.isFreeLike { return "無料" }
+        if let price = fee.priceYen { return "\(price)円" }
+        return nil
+    }
+
+    private func applyChanges(to exhibition: Exhibition) {
         if endDate < startDate { endDate = startDate }
         exhibition.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         exhibition.venue = venue.trimmingCharacters(in: .whitespacesAndNewlines)

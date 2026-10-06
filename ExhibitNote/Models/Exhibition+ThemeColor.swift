@@ -6,8 +6,7 @@
 //
 
 import SwiftUI
-import Foundation
-import CoreLocation
+import UIKit
 
 extension Exhibition {
     var uiColor: UIColor? {

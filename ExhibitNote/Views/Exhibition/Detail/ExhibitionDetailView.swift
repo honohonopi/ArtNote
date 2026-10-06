@@ -17,11 +17,6 @@ struct ExhibitionDetailView: View {
 
     @State private var vm: ExhibitionDetailViewModel
     @AppStorage("userAdmissionCategory") private var userAdmissionCategoryRaw = UserTicketCategory.adult.rawValue
-    @State private var shareItem: ShareItem?
-    @State private var isPreparingShare = false
-    @State private var shareErrorMessage: String?
-    @State private var showShareFallbackPrompt = false
-    @State private var showShareNotice = false
     
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
@@ -54,17 +49,14 @@ struct ExhibitionDetailView: View {
                 Menu {
                     // 共有
                     Button {
-                        showShareNotice = true
+                        vm.showShareNotice = true
                     } label: {
-                        Label(isPreparingShare ? "リンク作成中..." : "リンクで共有",
+                        Label(vm.isPreparingShare ? "リンク作成中..." : "リンクで共有",
                               systemImage: "link")
                     }
-                    .disabled(isPreparingShare)
+                    .disabled(vm.isPreparingShare)
                     // カレンダーに追加
-                    Button {
-                        vm.visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
-                        vm.showPlanner = true
-                    } label: {
+                    Button(action: vm.preparePlanner) {
                         Label("カレンダーに追加", systemImage: "calendar.badge.plus")
                     }
                     // 編集
@@ -73,10 +65,7 @@ struct ExhibitionDetailView: View {
                     } label: {
                         Label("編集", systemImage: "pencil")
                     }
-                    Button {
-                        exhibition.visited.toggle()
-                        exhibition.visitedAt = exhibition.visited ? Date() : nil
-                    } label: {
+                    Button(action: vm.toggleVisited) {
                         Label(exhibition.visited ? "訪問済みを取り消し" : "訪問済みにする",
                               systemImage: exhibition.visited ? "checkmark.circle" : "checkmark.circle.fill")
                     }
@@ -92,11 +81,11 @@ struct ExhibitionDetailView: View {
                 }
             }
         }
-        .sheet(item: $shareItem) { item in
+        .sheet(item: $vm.shareItem) { item in
             ShareSheet(items: item.items)
         }
         .overlay {
-            if isPreparingShare {
+            if vm.isPreparingShare {
                 ZStack {
                     Color.black.opacity(0.2)
                         .ignoresSafeArea()
@@ -113,29 +102,29 @@ struct ExhibitionDetailView: View {
             }
         }
         .alert("共有できませんでした", isPresented: Binding(
-            get: { shareErrorMessage != nil },
-            set: { if !$0 { shareErrorMessage = nil } }
+            get: { vm.shareErrorMessage != nil },
+            set: { if !$0 { vm.shareErrorMessage = nil } }
         )) {
-            Button("OK") { shareErrorMessage = nil }
+            Button("OK") { vm.shareErrorMessage = nil }
         } message: {
-            Text(shareErrorMessage ?? "")
+            Text(vm.shareErrorMessage ?? "")
         }
         .confirmationDialog(
             "共有リンクの有効期限は7日です",
-            isPresented: $showShareNotice,
+            isPresented: $vm.showShareNotice,
             titleVisibility: .visible
         ) {
-            Button("共有する") { Task { await prepareShare() } }
+            Button("共有する") { Task { await vm.prepareShare() } }
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("7日を過ぎるとリンクは開けなくなります。")
         }
         .confirmationDialog(
             "共有URLが長すぎるため作成できませんでした。\nタイトル・会場・公式リンクのみ共有しますか？",
-            isPresented: $showShareFallbackPrompt,
+            isPresented: $vm.showShareFallbackPrompt,
             titleVisibility: .visible
         ) {
-            Button("共有する") { shareFallbackText() }
+            Button("共有する", action: vm.prepareFallbackShare)
             Button("キャンセル", role: .cancel) {}
         }
         .confirmationDialog(
@@ -143,7 +132,12 @@ struct ExhibitionDetailView: View {
             isPresented: $vm.showDeleteConfirm,
             titleVisibility: .visible
         ) {
-            Button("削除", role: .destructive) { deleteExhibition() }
+            Button("削除", role: .destructive) {
+                writeState.run(deleting: true) {
+                    try vm.delete(in: context)
+                    dismiss()
+                }
+            }
             Button("キャンセル", role: .cancel) {}
         }
         .confirmationDialog(
@@ -178,45 +172,4 @@ struct ExhibitionDetailView: View {
         }
     }
 
-    private func prepareShare() async {
-        isPreparingShare = true
-        defer { isPreparingShare = false }
-        let result = await ExhibitionShareService.makeShareURL(for: exhibition)
-        switch result {
-        case .success(let url):
-            shareItem = ShareItem(items: [url])
-        case .failure(let error):
-            switch error {
-            case .tooLong:
-                showShareFallbackPrompt = true
-            case .unavailable:
-                shareErrorMessage = shareErrorMessageText(error)
-            }
-        }
-    }
-
-    private func shareErrorMessageText(_ error: ExhibitionShareService.ShareError) -> String {
-        switch error {
-        case .tooLong:
-            return "共有URLが長すぎるため作成できませんでした。項目を減らして再試行してください。"
-        case .unavailable:
-            return "共有URLを作成できませんでした。ネットワーク状態を確認して再試行してください。"
-        }
-    }
-
-    private func shareFallbackText() {
-        var items: [Any] = [exhibition.title, exhibition.venue]
-        if let url = exhibition.url?.absoluteString, !url.isEmpty {
-            items.append(url)
-        }
-        shareItem = ShareItem(items: items)
-    }
-    
-    private func deleteExhibition() {
-        writeState.run(deleting: true) {
-            try ExhibitionPersistenceService(context: context).delete(exhibition)
-            dismiss()
-        }
-    }
-    
 }

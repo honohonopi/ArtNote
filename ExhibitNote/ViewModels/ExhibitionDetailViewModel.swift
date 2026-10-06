@@ -8,6 +8,7 @@
 import SwiftUI
 import Observation
 import MapKit
+import SwiftData
 import UIKit
 
 @MainActor
@@ -23,9 +24,51 @@ final class ExhibitionDetailViewModel {
     var showMapChoice = false
     var showAdmissionDetails = false
     var showScheduleDetails = false
+    var shareItem: ShareItem?
+    var isPreparingShare = false
+    var shareErrorMessage: String?
+    var showShareFallbackPrompt = false
+    var showShareNotice = false
 
     init(exhibition: Exhibition) {
         self.exhibition = exhibition
+    }
+
+    func preparePlanner() {
+        visitDate = min(max(Date(), exhibition.startDate), exhibition.endDate)
+        showPlanner = true
+    }
+
+    func toggleVisited() {
+        exhibition.visited.toggle()
+        exhibition.visitedAt = exhibition.visited ? Date() : nil
+    }
+
+    func prepareShare() async {
+        guard !isPreparingShare else { return }
+        isPreparingShare = true
+        defer { isPreparingShare = false }
+
+        switch await ExhibitionShareService.makeShareURL(for: exhibition) {
+        case .success(let url):
+            shareItem = ShareItem(items: [url])
+        case .failure(.tooLong):
+            showShareFallbackPrompt = true
+        case .failure(.unavailable):
+            shareErrorMessage = "共有URLを作成できませんでした。ネットワーク状態を確認して再試行してください。"
+        }
+    }
+
+    func prepareFallbackShare() {
+        var items: [Any] = [exhibition.title, exhibition.venue]
+        if let url = exhibition.url?.absoluteString, !url.isEmpty {
+            items.append(url)
+        }
+        shareItem = ShareItem(items: items)
+    }
+
+    func delete(in context: ModelContext) throws {
+        try ExhibitionPersistenceService(context: context).delete(exhibition)
     }
 
     var hasScheduleInfo: Bool {
