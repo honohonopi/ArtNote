@@ -48,7 +48,7 @@ final class LocationSearchViewModel: NSObject, @preconcurrency MKLocalSearchComp
         let search = MKLocalSearch(request: request)
         do {
             let resp = try await search.start()
-            return resp.mapItems.first?.placemark.coordinate
+            return resp.mapItems.first?.location.coordinate
         } catch {
             return nil
         }
@@ -62,7 +62,27 @@ final class LocationSearchViewModel: NSObject, @preconcurrency MKLocalSearchComp
         if let region { request.region = region }
         do {
             let resp = try await MKLocalSearch(request: request).start()
-            return resp.mapItems.first?.placemark.coordinate
+            return resp.mapItems.first?.location.coordinate
+        } catch {
+            return nil
+        }
+    }
+
+    /// 座標から日本語の住所を取得する
+    func address(for coordinate: CLLocationCoordinate2D) async -> String? {
+        guard let request = MKReverseGeocodingRequest(
+            location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        ) else {
+            return nil
+        }
+        request.preferredLocale = Locale(identifier: "ja_JP")
+
+        do {
+            guard let mapItem = try await request.mapItems.first else { return nil }
+            return mapItem.addressRepresentations?.fullAddress(
+                includingRegion: false,
+                singleLine: true
+            ) ?? mapItem.address?.fullAddress
         } catch {
             return nil
         }

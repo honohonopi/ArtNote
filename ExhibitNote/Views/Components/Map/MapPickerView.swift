@@ -53,9 +53,8 @@ struct MapPickerView: View {
             .overlay(alignment: .bottom) {
                 Button {
                     Task {
-                        // 逆ジオコーディングして住所を推定
-                        let addr = await reverseGeocode(centerCoord)
-                        onSelect(centerCoord, addr)
+                        let address = await searchVM.address(for: centerCoord)
+                        onSelect(centerCoord, address)
                         dismiss()
                     }
                 } label: {
@@ -83,16 +82,8 @@ struct MapPickerView: View {
                 ForEach(searchVM.suggestions, id: \.self) { item in
                     Button {
                         Task {
-                            if let coord = await searchVM.resolve(item) {
-                                // 見つけた場所へ地図を移動
-                                let newRegion = MKCoordinateRegion(
-                                    center: coord,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                                )
-                                region = newRegion
-                                centerCoord = coord
-                                cameraPosition = .region(newRegion)
-                                searchVM.query = ""   // 入力クリア（任意）
+                            if let coordinate = await searchVM.resolve(item) {
+                                updateMapPosition(to: coordinate)
                             }
                         }
                     } label: {
@@ -106,41 +97,22 @@ struct MapPickerView: View {
             // Enterキーで検索
             .onSubmit(of: .search) {
                 Task {
-                    if let coord = await searchVM.resolveRawQuery() {
-                        let newRegion = MKCoordinateRegion(
-                            center: coord,
-                            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                        )
-                        region = newRegion
-                        centerCoord = coord
-                        cameraPosition = .region(newRegion)
-                        searchVM.query = ""
+                    if let coordinate = await searchVM.resolveRawQuery() {
+                        updateMapPosition(to: coordinate)
                     }
                 }
             }
         }
     }
-    
-    private func reverseGeocode(_ coord: CLLocationCoordinate2D) async -> String? {
-        let geocoder = CLGeocoder()
-        do {
-            let placemarks = try await geocoder.reverseGeocodeLocation(
-                CLLocation(latitude: coord.latitude, longitude: coord.longitude),
-                preferredLocale: Locale(identifier: "ja_JP")
-            )
-            guard let p = placemarks.first else { return nil }
-            // 簡易フォーマット（必要に応じて調整）
-            let parts: [String] = [
-                p.administrativeArea,   // 都道府県
-                p.locality,             // 市区町村
-                p.subLocality,          // 町域
-                p.thoroughfare,         // 通り
-                p.subThoroughfare,      // 番地
-                p.name                  // 施設名など
-            ].compactMap { $0 }.filter { !$0.isEmpty }
-            return parts.joined()
-        } catch {
-            return nil
-        }
+
+    private func updateMapPosition(to coordinate: CLLocationCoordinate2D) {
+        let newRegion = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+        region = newRegion
+        centerCoord = coordinate
+        cameraPosition = .region(newRegion)
+        searchVM.query = ""
     }
 }
