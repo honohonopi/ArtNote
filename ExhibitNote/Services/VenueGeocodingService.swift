@@ -1,5 +1,5 @@
 //
-//  VenueGeocodingService.swift.swift
+//  VenueGeocodingService.swift
 //  ArtNote
 //
 //  Created by Honoka Nishiyama on 2025/10/27.
@@ -10,7 +10,6 @@ import CoreLocation
 import MapKit
 
 enum VenueGeocodingService {
-    private static let geocoder = CLGeocoder()
     private static var cache: [String: CLLocationCoordinate2D] = [:]
     private struct GeocodeResult {
         let coordinate: CLLocationCoordinate2D
@@ -22,12 +21,10 @@ enum VenueGeocodingService {
         let key = venue.trimmingCharacters(in: .whitespacesAndNewlines)
         if let cached = resultCache[key]?.coordinate { return cached }
         if let cached = cache[key] { return cached }
-        guard !geocoder.isGeocoding else { try await Task.sleep(nanoseconds: 200_000_000) ; return try await geocode(venue) }
-
-        let placemarks = try await geocoder.geocodeAddressString(key, in: nil, preferredLocale: Locale(identifier: "ja_JP"))
-        guard let loc = placemarks.first?.location?.coordinate else { return nil }
-        cache[key] = loc
-        return loc
+        guard !key.isEmpty, let result = try await searchWithMapKit(query: key) else { return nil }
+        resultCache[key] = result
+        cache[key] = result.coordinate
+        return result.coordinate
     }
 
     static func geocodeWithAddress(_ venue: String) async throws
@@ -43,17 +40,11 @@ enum VenueGeocodingService {
                 return (poi.coordinate, poi.address)
             }
 
-            // ② 住所検索（フォールバック）
-            if let placemark = try? await geocoder
-                .geocodeAddressString(q, in: nil, preferredLocale: Locale(identifier: "ja_JP"))
-                .first,
-               let loc = placemark.location?.coordinate {
-
-                let addr = formattedAddress(from: placemark)
-                let result = GeocodeResult(coordinate: loc, address: addr)
+            // ② 施設以外も含めて検索
+            if let result = try? await searchWithMapKit(query: q) {
                 resultCache[q] = result
-                cache[q] = loc
-                return (loc, addr)
+                cache[q] = result.coordinate
+                return (result.coordinate, result.address)
             }
         }
 
@@ -62,19 +53,9 @@ enum VenueGeocodingService {
     }
 
 
-    private static func formattedAddress(from placemark: CLPlacemark) -> String? {
-        let parts: [String] = [
-            placemark.administrativeArea,
-            placemark.locality,
-            placemark.subLocality,
-            placemark.thoroughfare,
-            placemark.subThoroughfare,
-            placemark.name
-        ]
-        .compactMap { $0 }
-        .filter { !$0.isEmpty }
-        let joined = parts.joined()
-        return joined.isEmpty ? nil : joined
+    private static func formattedAddress(from item: MKMapItem) -> String? {
+        item.addressRepresentations?.fullAddress(includingRegion: false, singleLine: true)
+            ?? item.address?.fullAddress
     }
 
     private static func searchWithMapKit(query: String) async throws -> GeocodeResult? {
@@ -86,10 +67,9 @@ enum VenueGeocodingService {
             print("📍 MKLocalSearch no mapItems")
             return nil
         }
-        let placemark = item.placemark
-        let addr = formattedAddress(from: placemark)
-        print("📍 MKLocalSearch addr: \"\(addr ?? "nil")\"")
-        return GeocodeResult(coordinate: placemark.coordinate, address: addr)
+        let address = formattedAddress(from: item)
+        print("📍 MKLocalSearch addr: \"\(address ?? "nil")\"")
+        return GeocodeResult(coordinate: item.location.coordinate, address: address)
     }
     
     private static func normalizeVenueQuery(_ venue: String) -> [String] {
@@ -124,13 +104,12 @@ enum VenueGeocodingService {
             return nil
         }
 
-        let placemark = item.placemark
-        let address = formattedAddress(from: placemark)
+        let address = formattedAddress(from: item)
 
         print("📍 POI hit: \"\(item.name ?? "-")\"")
 
         return GeocodeResult(
-            coordinate: placemark.coordinate,
+            coordinate: item.location.coordinate,
             address: address
         )
     }

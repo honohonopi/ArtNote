@@ -222,8 +222,10 @@ final class ExhibitionDetailViewModel {
     }
 
     func openInAppleMaps(_ coord: CLLocationCoordinate2D, name: String) {
-        let placemark = MKPlacemark(coordinate: coord)
-        let mapItem = MKMapItem(placemark: placemark)
+        let mapItem = MKMapItem(
+            location: CLLocation(latitude: coord.latitude, longitude: coord.longitude),
+            address: nil
+        )
         mapItem.name = name
         mapItem.openInMaps(launchOptions: [
             MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
