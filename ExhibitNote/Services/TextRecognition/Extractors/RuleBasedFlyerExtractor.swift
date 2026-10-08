@@ -72,7 +72,6 @@ enum RuleBasedFlyerExtractor {
         let titleLines = filteredLines.filter { $0.category == "title" }.map(\.text)
         let venueLines = filteredLines.filter { $0.category == "venue" }.map(\.text)
         let urlLines = filteredLines.filter { $0.category == "url" }.map(\.text)
-        let feeLines = filteredLines.filter { $0.category == "fee" }.map(\.text)
         let scheduleLines = filteredLines.filter { $0.category == "schedule" }.map(\.text)
         let closedLines = filteredLines.filter { $0.category == "closed" }.map(\.text)
         let reservationLines = filteredLines.filter { $0.category == "reservation" }.map(\.text)

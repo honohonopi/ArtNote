@@ -380,7 +380,7 @@ final class ExhibitionEditViewModel {
               !raw.isEmpty
         else { return nil }
         switch raw {
-        case "NONE": return .none
+        case "NONE": return HolidayHandling.none
         case "OPEN_ON_HOLIDAY": return .openOnHoliday
         case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY": return .openOnHolidayCloseNextWeekday
         default: return nil

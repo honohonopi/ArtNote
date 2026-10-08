@@ -411,13 +411,11 @@ private final class PDFThumbnailLoader {
     private let url: URL
     private let pageCount: Int
     private let accessGranted: Bool
-    private let document: PDFDocument?
 
     init(url: URL, pageCount: Int) {
         self.url = url
         self.pageCount = pageCount
         accessGranted = url.startAccessingSecurityScopedResource()
-        document = PDFDocument(url: url)
     }
 
     deinit {
@@ -429,13 +427,17 @@ private final class PDFThumbnailLoader {
     func load(page index: Int) {
         guard thumbnails[index] == nil else { return }
         guard index >= 0, index < pageCount else { return }
-        guard let page = document?.page(at: index) else { return }
+        let url = url
         let targetSize = CGSize(width: 160, height: 220)
-        DispatchQueue.global(qos: .userInitiated).async {
-            let image = page.thumbnail(of: targetSize, for: .mediaBox)
-            DispatchQueue.main.async {
-                self.thumbnails[index] = image
-            }
+        Task {
+            let imageData = await Task.detached(priority: .userInitiated) { () -> Data? in
+                guard let document = PDFDocument(url: url),
+                      let page = document.page(at: index)
+                else { return nil }
+                return page.thumbnail(of: targetSize, for: .mediaBox).pngData()
+            }.value
+            guard let imageData, let image = UIImage(data: imageData) else { return }
+            thumbnails[index] = image
         }
     }
 }

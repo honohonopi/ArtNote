@@ -80,7 +80,7 @@ enum GeminiFlyerExtractor {
         let lastEntryTime = regular.lastEntryTime?.trimmed
         let closedWeekdays = (regular.closedWeekdays ?? [])
             .compactMap { Weekday(rawValue: $0.lowercased()) }
-        let holidayHandling = parseHolidayHandling(regular.holidayHandling) ?? .none
+        let holidayHandling = parseHolidayHandling(regular.holidayHandling)
 
         var closedDateRules = parseDateRules(payload.exceptions?.closedRules, allowRange: true)
         var openDateRules = parseDateRules(payload.exceptions?.openRules, allowRange: false)
@@ -224,7 +224,7 @@ enum GeminiFlyerExtractor {
               !raw.isEmpty
         else { return nil }
         switch raw {
-        case "NONE": return .none
+        case "NONE": return HolidayHandling.none
         case "OPEN_ON_HOLIDAY": return .openOnHoliday
         case "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY": return .openOnHolidayCloseNextWeekday
         default: return nil

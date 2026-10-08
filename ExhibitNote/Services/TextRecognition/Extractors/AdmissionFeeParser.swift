@@ -114,7 +114,7 @@ enum AdmissionFeeParser {
             }
         }
         flushPending()
-        print("💴 fee-parse results: \(results.map { "\($0.rawLabel)=\($0.priceYen)" })")
+        print("💴 fee-parse results: \(results.map { "\($0.rawLabel)=\($0.priceYen.map(String.init) ?? "未設定")" })")
         return results.isEmpty ? nil : results
     }
 

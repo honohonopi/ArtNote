@@ -102,15 +102,17 @@ struct MemoRichTextView: UIViewRepresentable {
 
         func textView(
             _ textView: UITextView,
-            shouldInteractWith textAttachment: NSTextAttachment,
-            in characterRange: NSRange,
-            interaction: UITextItemInteraction
-        ) -> Bool {
-            if let image = textAttachment.image ?? imageFromAttachment(textAttachment) {
-                DispatchQueue.main.async { self.parent.onImageTap(image) }
-                return false
+            primaryActionFor textItem: UITextItem,
+            defaultAction: UIAction
+        ) -> UIAction? {
+            guard case .textAttachment(let textAttachment) = textItem.content else {
+                return defaultAction
             }
-            return true
+            if let image = textAttachment.image ?? imageFromAttachment(textAttachment) {
+                parent.onImageTap(image)
+                return nil
+            }
+            return defaultAction
         }
 
         func updateAccessory(_ accessory: AnyView?, for textView: UITextView) {

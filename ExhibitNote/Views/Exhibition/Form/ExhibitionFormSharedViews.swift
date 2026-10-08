@@ -74,7 +74,7 @@ struct BasicInfoSectionView: View {
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .environment(\.calendar, Calendar.japan)
-                    .onChange(of: startDate) { _ in
+                    .onChange(of: startDate) { _, _ in
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
                     .overlay(alignment: .trailing) {
@@ -91,7 +91,7 @@ struct BasicInfoSectionView: View {
                     .datePickerStyle(.compact)
                     .environment(\.locale, Locale(identifier: "ja_JP"))
                     .environment(\.calendar, Calendar.japan)
-                    .onChange(of: endDate) { _ in
+                    .onChange(of: endDate) { _, _ in
                         if !isApplyingAutoDates { hasManuallyEditedDates = true }
                     }
                     .overlay(alignment: .trailing) {
@@ -325,9 +325,9 @@ struct ScheduleEditorListView: View {
                 Spacer()
                 Menu {
                     Button("記載なし") { scheduleHolidayHandling = nil }
-                    Button("祝日対応なし") { scheduleHolidayHandling = .none }
-                    Button("祝日は開館") { scheduleHolidayHandling = .openOnHoliday }
-                    Button("祝日開館、翌平日休館") { scheduleHolidayHandling = .openOnHolidayCloseNextWeekday }
+                    Button("祝日対応なし") { scheduleHolidayHandling = HolidayHandling.none }
+                    Button("祝日は開館") { scheduleHolidayHandling = HolidayHandling.openOnHoliday }
+                    Button("祝日開館、翌平日休館") { scheduleHolidayHandling = HolidayHandling.openOnHolidayCloseNextWeekday }
                 } label: {
                     HStack(spacing: 6) {
                         Text(holidayHandlingText(scheduleHolidayHandling))

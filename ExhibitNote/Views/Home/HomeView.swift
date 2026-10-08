@@ -74,7 +74,7 @@ struct HomeView: View {
                     recomputeNearby()
                     checkNearbyOpenNotification()
                 }
-                .onChange(of: nearbyRadiusKm) {
+                .onChange(of: nearbyRadiusKm) { _, _ in
                     recomputeNearby()
                 }
                 .onAppear {
@@ -82,12 +82,12 @@ struct HomeView: View {
                     recomputeNearby()
                     checkNearbyOpenNotification()
                 }
-                .onChange(of: hereKeyString) { _ in
+                .onChange(of: hereKeyString) { _, _ in
                     recomputeNearby()
                     checkNearbyOpenNotification()
                 }
                 // 件数だけ監視にして型推論を軽く
-                .onChange(of: allExhibitions.count) { _ in
+                .onChange(of: allExhibitions.count) { _, _ in
                     recomputeNearby()
                     checkNearbyOpenNotification()
                 }

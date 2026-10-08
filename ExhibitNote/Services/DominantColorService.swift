@@ -40,7 +40,7 @@ enum DominantColorService {
             let g8 = ptr[offset + 1]
             let b8 = ptr[offset + 2]
             // HSV で低彩度/極端な明暗を弾く
-            let (h, s, v) = rgbToHsv(r: r8, g: g8, b: b8)
+            let (_, s, v) = rgbToHsv(r: r8, g: g8, b: b8)
             if s < 0.15 || v < 0.15 || v > 0.98 { continue } // 白/黒/灰を除外気味に
 
             let r4 = Int(r8) >> 4
