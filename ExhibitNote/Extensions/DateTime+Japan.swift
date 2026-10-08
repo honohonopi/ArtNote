@@ -22,3 +22,12 @@ extension DateFormatter {
         return formatter
     }
 }
+
+extension Date {
+    /// 表示用の日付文字列（例: 2025/11/25）
+    var ymdString: String {
+        let formatter = DateFormatter.japanese()
+        formatter.dateFormat = "yyyy/MM/dd"
+        return formatter.string(from: self)
+    }
+}
