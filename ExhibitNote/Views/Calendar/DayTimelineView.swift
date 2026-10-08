@@ -21,13 +21,6 @@ struct DayTimelineView: View {
     @State private var addVisitTarget: AddVisitEventTarget?
     @State private var detailTarget: DetailNavigationTarget?
 
-    private let timeColumnWidth: CGFloat = 44
-    private let hourHeight: CGFloat = 60
-    private let columnSpacing: CGFloat = 6
-    private let horizontalPadding: CGFloat = 8
-    private let timeToEventSpacing: CGFloat = 8
-    private let suggestionCarouselPadding: CGFloat = 16
-
     private var dfTime: DateFormatter {
         let f = DateFormatter.japanese()
         f.locale = Locale(identifier: "ja_JP")
@@ -145,14 +138,15 @@ struct DayTimelineView: View {
     private func timelineContent(now: Date, includeVisited: Bool) -> some View {
         let allDayEvents = viewModel.events.filter { $0.isAllDay }
         let timedEvents = viewModel.events.filter { !$0.isAllDay }
-        let layoutItems = layoutEvents(timedEvents)
         let suggestions = viewModel.suggestions(
             exhibitions: exhibitions,
             day: date,
             includeVisited: includeVisited,
             now: now
         )
-        let suggestionClusters = layoutSuggestionClusters(suggestions)
+        let layoutBuilder = DayTimelineLayoutBuilder(day: date)
+        let layout = layoutBuilder.build(events: timedEvents, suggestions: suggestions)
+        let metrics = layoutBuilder.metrics
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -172,10 +166,10 @@ struct DayTimelineView: View {
                 }
 
                 GeometryReader { proxy in
-                    let carouselCardWidth = itemWidth(in: proxy.size.width, columns: 2)
+                    let carouselCardWidth = layoutBuilder.itemWidth(in: proxy.size.width, columns: 2)
                     ZStack(alignment: .topLeading) {
-                        hourGrid
-                        ForEach(suggestionClusters) { cluster in
+                        hourGrid(metrics: metrics)
+                        ForEach(layout.suggestionClusters) { cluster in
                             if cluster.columnCount >= 3 {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     ZStack(alignment: .topLeading) {
@@ -186,7 +180,7 @@ struct DayTimelineView: View {
                                             )
                                                 .frame(
                                                     width: carouselCardWidth,
-                                                    height: suggestionHeight(item.suggestion)
+                                                    height: item.height
                                                 )
                                                 .contentShape(Rectangle())
                                                 .onTapGesture {
@@ -194,32 +188,38 @@ struct DayTimelineView: View {
                                                     showSuggestionActions = true
                                                 }
                                                 .offset(
-                                                    x: suggestionCarouselXOffset(column: item.column,
-                                                                                 cardWidth: carouselCardWidth),
-                                                    y: suggestionYOffsetRelative(item.suggestion,
-                                                                                 clusterStart: cluster.start)
+                                                    x: layoutBuilder.carouselXOffset(
+                                                        column: item.column,
+                                                        cardWidth: carouselCardWidth
+                                                    ),
+                                                    y: item.relativeYOffset
                                                 )
                                         }
                                     }
                                     .frame(
-                                        width: suggestionCarouselContentWidth(columns: cluster.columnCount,
-                                                                             cardWidth: carouselCardWidth),
-                                        height: suggestionClusterHeight(cluster),
+                                        width: layoutBuilder.carouselContentWidth(
+                                            columns: cluster.columnCount,
+                                            cardWidth: carouselCardWidth
+                                        ),
+                                        height: cluster.height,
                                         alignment: .topLeading
                                     )
                                 }
-                                .padding(.leading, timeColumnWidth + timeToEventSpacing)
-                                .padding(.trailing, suggestionCarouselPadding)
+                                .padding(.leading, metrics.timeColumnWidth + metrics.timeToEventSpacing)
+                                .padding(.trailing, metrics.suggestionCarouselPadding)
                                 .frame(width: proxy.size.width,
-                                       height: suggestionClusterHeight(cluster),
+                                       height: cluster.height,
                                        alignment: .leading)
-                                .offset(y: suggestionClusterYOffset(cluster))
+                                .offset(y: cluster.yOffset)
                             } else {
                                 ForEach(cluster.items) { item in
                                     SuggestionBlockView(suggestion: item.suggestion, badgeText: nil)
                                         .frame(
-                                            width: itemWidth(in: proxy.size.width, columns: item.columnCount),
-                                            height: suggestionHeight(item.suggestion)
+                                            width: layoutBuilder.itemWidth(
+                                                in: proxy.size.width,
+                                                columns: item.columnCount
+                                            ),
+                                            height: item.height
                                         )
                                         .contentShape(Rectangle())
                                         .onTapGesture {
@@ -227,163 +227,65 @@ struct DayTimelineView: View {
                                             showSuggestionActions = true
                                         }
                                         .offset(
-                                            x: timeColumnWidth + timeToEventSpacing
-                                                + itemXOffset(in: proxy.size.width,
-                                                              column: item.column,
-                                                              columns: item.columnCount),
-                                            y: suggestionYOffset(item.suggestion)
+                                            x: metrics.timeColumnWidth + metrics.timeToEventSpacing
+                                                + layoutBuilder.itemXOffset(
+                                                    in: proxy.size.width,
+                                                    column: item.column,
+                                                    columns: item.columnCount
+                                                ),
+                                            y: item.yOffset
                                         )
                                 }
                             }
                         }
-                        ForEach(layoutItems) { item in
+                        ForEach(layout.events) { item in
                             DayTimelineEventBlock(
                                 event: item.event,
                                 timeText: timeText(for: item.event)
                             )
-                            .frame(width: itemWidth(in: proxy.size.width, columns: item.columnCount),
-                                   height: max(24, itemHeight(item.event)))
-                            .offset(x: timeColumnWidth + timeToEventSpacing + itemXOffset(in: proxy.size.width, column: item.column, columns: item.columnCount),
-                                    y: itemYOffset(item.event))
+                            .frame(
+                                width: layoutBuilder.itemWidth(in: proxy.size.width, columns: item.columnCount),
+                                height: item.height
+                            )
+                            .offset(
+                                x: metrics.timeColumnWidth + metrics.timeToEventSpacing
+                                    + layoutBuilder.itemXOffset(
+                                        in: proxy.size.width,
+                                        column: item.column,
+                                        columns: item.columnCount
+                                    ),
+                                y: item.yOffset
+                            )
                         }
                     }
-                    .padding(.horizontal, horizontalPadding)
-                    .frame(height: hourHeight * 24)
+                    .padding(.horizontal, metrics.horizontalPadding)
+                    .frame(height: metrics.dayHeight)
                 }
-                .frame(height: hourHeight * 24)
+                .frame(height: metrics.dayHeight)
             }
             .padding(.vertical, 12)
         }
     }
 
-    private var hourGrid: some View {
+    private func hourGrid(metrics: DayTimelineLayoutBuilder.Metrics) -> some View {
         VStack(spacing: 0) {
             ForEach(0..<24, id: \.self) { hour in
-                HStack(alignment: .top, spacing: timeToEventSpacing) {
+                HStack(alignment: .top, spacing: metrics.timeToEventSpacing) {
                     Text(String(format: "%02d:00", hour))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .frame(width: timeColumnWidth, alignment: .trailing)
+                        .frame(width: metrics.timeColumnWidth, alignment: .trailing)
                     Rectangle()
                         .fill(Color(.systemGray5))
                         .frame(height: 1)
                 }
-                .frame(height: hourHeight, alignment: .top)
+                .frame(height: metrics.hourHeight, alignment: .top)
             }
         }
-    }
-
-    private func itemYOffset(_ event: DayTimelineEvent) -> CGFloat {
-        let start = max(event.startDate, dayStart)
-        let minutes = minutesFromStart(of: start)
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func itemHeight(_ event: DayTimelineEvent) -> CGFloat {
-        let start = max(event.startDate, dayStart)
-        let end = min(event.endDate, dayEnd)
-        let minutes = max(30.0, minutesBetween(start: start, end: end))
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func itemWidth(in totalWidth: CGFloat, columns: Int) -> CGFloat {
-        let contentWidth = max(0, totalWidth - timeColumnWidth - timeToEventSpacing - horizontalPadding * 2)
-        let spacing = CGFloat(max(columns - 1, 0)) * columnSpacing
-        return (contentWidth - spacing) / CGFloat(max(columns, 1))
-    }
-
-    private func itemXOffset(in totalWidth: CGFloat, column: Int, columns: Int) -> CGFloat {
-        let width = itemWidth(in: totalWidth, columns: columns)
-        return CGFloat(column) * (width + columnSpacing)
-    }
-
-    private func suggestionCarouselXOffset(column: Int, cardWidth: CGFloat) -> CGFloat {
-        CGFloat(column) * (cardWidth + columnSpacing)
-    }
-
-    private func suggestionCarouselContentWidth(columns: Int, cardWidth: CGFloat) -> CGFloat {
-        guard columns > 0 else { return 0 }
-        let cards = CGFloat(columns) * cardWidth
-        let spacing = CGFloat(max(columns - 1, 0)) * columnSpacing
-        return cards + spacing
-    }
-
-    private func suggestionClusterYOffset(_ cluster: SuggestionCluster) -> CGFloat {
-        let minutes = minutesFromStart(of: cluster.start)
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func suggestionClusterHeight(_ cluster: SuggestionCluster) -> CGFloat {
-        let minutes = max(0, minutesBetween(start: cluster.start, end: cluster.end))
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func suggestionYOffset(_ suggestion: TimelineSuggestion) -> CGFloat {
-        let start = max(suggestion.availableStart, dayStart)
-        let minutes = minutesFromStart(of: start)
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func suggestionYOffsetRelative(
-        _ suggestion: TimelineSuggestion,
-        clusterStart: Date
-    ) -> CGFloat {
-        let start = max(suggestion.availableStart, clusterStart)
-        let minutes = max(0, start.timeIntervalSince(clusterStart) / 60.0)
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func suggestionHeight(_ suggestion: TimelineSuggestion) -> CGFloat {
-        let start = max(suggestion.availableStart, dayStart)
-        let end = min(suggestion.availableEnd, dayEnd)
-        let minutes = max(0, minutesBetween(start: start, end: end))
-        return CGFloat(minutes / 60.0) * hourHeight
-    }
-
-    private func minutesFromStart(of date: Date) -> Double {
-        let calendar = Calendar.japan
-        let components = calendar.dateComponents([.hour, .minute], from: date)
-        let hours = Double(components.hour ?? 0)
-        let minutes = Double(components.minute ?? 0)
-        return max(0, hours * 60 + minutes)
-    }
-
-    private func minutesBetween(start: Date, end: Date) -> Double {
-        max(0, end.timeIntervalSince(start) / 60.0)
-    }
-
-    private var dayStart: Date {
-        Calendar.japan.startOfDay(for: date)
-    }
-
-    private var dayEnd: Date {
-        Calendar.japan.date(byAdding: .day, value: 1, to: dayStart) ?? date
     }
 
     private func timeTextRange(for suggestion: TimelineSuggestion) -> String {
         "\(dfTime.string(from: suggestion.availableStart))–\(dfTime.string(from: suggestion.availableEnd))"
-    }
-
-
-    private func layoutEvents(_ events: [DayTimelineEvent]) -> [EventLayoutItem] {
-        TimelineLayout.clusters(for: events, start: \.startDate, end: \.endDate).flatMap { cluster in
-            cluster.items.map { item in
-                EventLayoutItem(event: item.value, column: item.column, columnCount: cluster.columnCount)
-            }
-        }
-    }
-
-    private func layoutSuggestionClusters(_ suggestions: [TimelineSuggestion]) -> [SuggestionCluster] {
-        TimelineLayout.clusters(for: suggestions, start: \.availableStart, end: \.availableEnd).map { cluster in
-            SuggestionCluster(
-                items: cluster.items.map { item in
-                    SuggestionLayoutItem(suggestion: item.value, column: item.column, columnCount: cluster.columnCount)
-                },
-                columnCount: cluster.columnCount,
-                start: cluster.start,
-                end: cluster.end
-            )
-        }
     }
 
 }
@@ -517,27 +419,6 @@ private struct SuggestionBlockView: View {
     }
 }
 
-private struct SuggestionLayoutItem: Identifiable {
-    let suggestion: TimelineSuggestion
-    let column: Int
-    let columnCount: Int
-
-    var id: String { suggestion.id }
-}
-
-private struct SuggestionCluster: Identifiable {
-    let items: [SuggestionLayoutItem]
-    let columnCount: Int
-    let start: Date
-    let end: Date
-
-    var id: String {
-        let startValue = Int(start.timeIntervalSince1970)
-        let endValue = Int(end.timeIntervalSince1970)
-        return "\(startValue)-\(endValue)-\(items.count)"
-    }
-}
-
 private struct DayTimelineEventBlock: View {
     let event: DayTimelineEvent
     let timeText: String
@@ -563,12 +444,4 @@ private struct DayTimelineEventBlock: View {
         )
         .padding(1)
     }
-}
-
-private struct EventLayoutItem: Identifiable {
-    let event: DayTimelineEvent
-    let column: Int
-    let columnCount: Int
-
-    var id: String { event.id }
 }
