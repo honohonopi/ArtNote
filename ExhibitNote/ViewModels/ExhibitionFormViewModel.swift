@@ -1,96 +1,39 @@
-//
-//  ExhibitionFormViewModel.swift
-//  ExhibitNote
-//
-//  Created by Honoka Nishiyama on 2026/01/06.
-//
-
 import SwiftUI
 import Observation
-import MapKit
 import PhotosUI
 import UIKit
 
 @MainActor
 @Observable
 final class ExhibitionFormViewModel {
-    var title = ""
-    var venue = ""
-    var startDate = Date()
-    var endDate = Calendar.japan.date(byAdding: .day, value: 30, to: Date()) ?? Date()
-    var urlString: String = ""
-    var catalogTotalCountStr: String = ""
+    let draft = ExhibitionDraft()
 
     var showPhotoPicker = false
     var selectedItems: [PhotosPickerItem] = []
-    var ocrAlertMessage: String? = nil
+    var showCamera = false
+    var showPDFPicker = false
+    var pdfSelection: PDFSelection?
+
+    var ocrAlertMessage: String?
     var showOcrAlert = false
     var showFoundationModelUnavailableAlert = false
     var showFoundationModelDontShowWarning = false
-    var showPDFPicker = false
-    var pdfSelection: PDFSelection? = nil
+    var isAIAnalyzing = false
+    var isExtracting = false
 
     var titleOptions: [String] = []
     var venueOptions: [String] = []
     var dateOptions: [(Date, Date)] = []
     var urlOptions: [String] = []
-
     var selectedTitle: String?
     var selectedVenue: String?
-    var selectedDateIndex: Int = 0
+    var selectedDateIndex = 0
     var selectedURL: String?
-    var hasManuallyEditedDates = false
-    var isApplyingAutoDates = false
-    var isAIAnalyzing = false
-    var isExtracting = false
-
     var showReviewSheet = false
     var showBasicOnlyNotice = false
     var showMissingAlert = false
-    var missingAlertMessage: String = ""
-    var pendingAlertMessage: String? = nil
-
-    var pickedColor: Color? = nil
-    var autoColor: UIColor? = nil
-    var posterThumbData: Data? = nil
-
-    var showMapPicker = false
-    var tempCoordinate: CLLocationCoordinate2D?
-    var showCamera = false
-    var previewRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
-        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-    )
-    var addressLine = ""
-
-    var scheduleOpenTime: String? = nil
-    var scheduleCloseTime: String? = nil
-    var scheduleLastEntryTime: String? = nil
-    var scheduleClosedWeekdays: [Weekday] = []
-    var scheduleHolidayHandling: HolidayHandling? = nil
-    var scheduleClosedDateRules: [DateRule] = []
-    var scheduleOpenDateRules: [DateRule] = []
-    var scheduleSpecialOpenings: [SpecialOpening] = []
-    var editingSpecialOpeningIndex: Int? = nil
-    var showSpecialOpeningEditor = false
-    var specialOpeningMode: SpecialOpeningInputMode = .date
-    var draftSpecialOpeningDate = Date()
-    var draftSpecialOpeningStartDate = Date()
-    var draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-    var draftSpecialOpeningWeekdays: Set<Weekday> = []
-    var draftSpecialOpeningOpenTime = "10:00"
-    var draftSpecialOpeningCloseTime = "17:00"
-    var draftSpecialOpeningLastEntryTime: String? = nil
-
-    var admissionFees: [AdmissionFeeRule] = []
-    var reservationRequired: Bool? = nil
-    var showAdmissionFees = false
-    var showAdmissionFeeEditor = false
-    var editingAdmissionFeeIndex: Int? = nil
-    var draftAdmissionLabel: String = ""
-    var draftAdmissionPriceText: String = ""
-    var draftAdmissionNote: String = ""
-    var draftAdmissionTargets: [UserTicketCategory] = []
+    var missingAlertMessage = ""
+    var pendingAlertMessage: String?
 
     struct PDFSelection: Identifiable {
         let id = UUID()
@@ -98,151 +41,32 @@ final class ExhibitionFormViewModel {
         let pageCount: Int
     }
 
-    func prepareMapPicker() {
-        showMapPicker = true
-    }
-
-    func applyMapSelection(coordinate: CLLocationCoordinate2D, address: String?) {
-        tempCoordinate = coordinate
-        previewRegion.center = coordinate
-        previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        if let address, !address.isEmpty {
-            addressLine = address
-        }
-    }
-
-    func prepareSpecialOpeningEditor(for opening: SpecialOpening? = nil) {
-        if let opening {
-            switch opening.rule {
-            case .date(let date):
-                specialOpeningMode = .date
-                draftSpecialOpeningDate = date
-                draftSpecialOpeningWeekdays = []
-            case .weekday(let weekday):
-                specialOpeningMode = .weekday
-                draftSpecialOpeningDate = Date()
-                draftSpecialOpeningWeekdays = [weekday]
-            case .range(let start, let end):
-                specialOpeningMode = .range
-                draftSpecialOpeningStartDate = start
-                draftSpecialOpeningEndDate = end
-                draftSpecialOpeningWeekdays = []
-            }
-            draftSpecialOpeningOpenTime = opening.openTime
-            draftSpecialOpeningCloseTime = opening.closeTime
-            draftSpecialOpeningLastEntryTime = opening.lastEntryTime
-        } else {
-            specialOpeningMode = .date
-            draftSpecialOpeningDate = Date()
-            draftSpecialOpeningStartDate = Date()
-            draftSpecialOpeningEndDate = Calendar.japan.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-            draftSpecialOpeningWeekdays = []
-            draftSpecialOpeningOpenTime = scheduleOpenTime ?? "10:00"
-            draftSpecialOpeningCloseTime = scheduleCloseTime ?? "17:00"
-            draftSpecialOpeningLastEntryTime = scheduleLastEntryTime
-        }
-    }
-
     func preparePickedPDF(_ url: URL) {
         guard let pageCount = FlyerImageService.pdfPageCount(at: url) else {
-            ocrAlertMessage = "PDFの読み込みに失敗しました。"
-            showOcrAlert = true
+            showPDFError()
             return
         }
         if pageCount <= 1 {
             Task { await handlePickedPDF(url, pageIndex: 0) }
-            return
+        } else {
+            pdfSelection = PDFSelection(url: url, pageCount: pageCount)
         }
-        pdfSelection = PDFSelection(url: url, pageCount: pageCount)
     }
 
     func handlePickedPDF(_ url: URL, pageIndex: Int) async {
         guard let image = FlyerImageService.image(fromPDF: url, pageIndex: pageIndex) else {
-            ocrAlertMessage = "PDFの読み込みに失敗しました。"
-            showOcrAlert = true
+            showPDFError()
             return
         }
         await handlePickedImage(image)
     }
 
     func handlePickedPDF(_ url: URL, pageIndices: [Int]) async {
-        guard let combined = FlyerImageService.combinedImage(
-            fromPDF: url,
-            pageIndices: pageIndices
-        ) else {
-            ocrAlertMessage = "PDFの読み込みに失敗しました。"
-            showOcrAlert = true
+        guard let image = FlyerImageService.combinedImage(fromPDF: url, pageIndices: pageIndices) else {
+            showPDFError()
             return
         }
-        await handlePickedImage(combined)
-    }
-
-    func commitDraftSpecialOpening() {
-        let items = buildDraftSpecialOpenings()
-        if let index = editingSpecialOpeningIndex {
-            scheduleSpecialOpenings.remove(at: index)
-            if !items.isEmpty {
-                scheduleSpecialOpenings.insert(contentsOf: items, at: index)
-            }
-            editingSpecialOpeningIndex = nil
-        } else {
-            scheduleSpecialOpenings.append(contentsOf: items)
-        }
-    }
-
-    func toggleDraftWeekday(_ weekday: Weekday) {
-        if draftSpecialOpeningWeekdays.contains(weekday) {
-            draftSpecialOpeningWeekdays.remove(weekday)
-        } else {
-            draftSpecialOpeningWeekdays.insert(weekday)
-        }
-    }
-
-    func prepareAdmissionFeeEditor(for fee: AdmissionFeeRule? = nil) {
-        if let fee {
-            draftAdmissionLabel = fee.rawLabel
-            if let price = fee.priceYen {
-                draftAdmissionPriceText = "\(price)"
-            } else {
-                draftAdmissionPriceText = ""
-            }
-            draftAdmissionNote = fee.note ?? ""
-            draftAdmissionTargets = fee.targets
-        } else {
-            draftAdmissionLabel = ""
-            draftAdmissionPriceText = ""
-            draftAdmissionNote = ""
-            draftAdmissionTargets = []
-        }
-    }
-
-    func commitAdmissionFee() {
-        let label = draftAdmissionLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let noteText = draftAdmissionNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        let priceText = draftAdmissionPriceText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let price = priceText.isEmpty ? nil : Int(priceText)
-        var newFee = AdmissionFeeRule(
-            rawLabel: label,
-            priceYen: price,
-            note: noteText.isEmpty ? nil : noteText,
-            targets: draftAdmissionTargets
-        )
-        if let index = editingAdmissionFeeIndex {
-            newFee.id = admissionFees[index].id
-            admissionFees[index] = newFee
-            editingAdmissionFeeIndex = nil
-        } else {
-            admissionFees.append(newFee)
-        }
-    }
-
-    var canSaveAdmissionFee: Bool {
-        let label = draftAdmissionLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let noteText = draftAdmissionNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        let priceText = draftAdmissionPriceText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasPrice = !priceText.isEmpty
-        let priceIsValid = priceText.isEmpty || Int(priceText) != nil
-        return !label.isEmpty && priceIsValid && (hasPrice || !noteText.isEmpty)
+        await handlePickedImage(image)
     }
 
     func handlePickedImage(_ image: UIImage) async {
@@ -253,165 +77,57 @@ final class ExhibitionFormViewModel {
             showBasicOnlyNotice = false
             defer { isExtracting = false }
             isAIAnalyzing = true
+
             do {
                 result = try await TextRecognitionService.extractFlyerFieldsWithAI(from: image)
                 usedAI = true
             } catch {
-                let fallback = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true)
-                result = fallback.result
-                usedAI = false
+                result = try await TextRecognitionService.extractFlyerFieldsWithMeta(from: image, basicOnly: true).result
                 showBasicOnlyNotice = true
                 checkFoundationModelAvailability()
             }
 
-            if let thumb = ImageThumbService.makeThumbnail(image) {
-                posterThumbData = thumb
-            }
-            if let dom = DominantColorService.dominantColor(from: image) {
-                autoColor = dom
-                pickedColor = Color(dom)
-            }
-
-            titleOptions = result.titleCandidates
-            venueOptions = result.venueCandidates
-            dateOptions = result.dateCandidates
-            urlOptions = result.urlCandidates
-
-            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let firstTitle = result.titleCandidates.first {
-                title = firstTitle
-            }
-
-            if venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let firstVenue = result.venueCandidates.first {
-                venue = firstVenue
-            }
-
-            if !hasManuallyEditedDates,
-               let firstPeriod = result.dateCandidates.first {
-                isApplyingAutoDates = true
-                startDate = firstPeriod.0
-                endDate = firstPeriod.1
-                isApplyingAutoDates = false
-            }
-
-            if urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let firstURL = result.urlCandidates.first {
-                urlString = firstURL
-            }
-            selectedURL = urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : urlString
-
-            let missingTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let missingVenue = venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let missingDates = dateOptions.isEmpty
-            let hasMultipleCandidates = titleOptions.count > 1 ||
-                venueOptions.count > 1 ||
-                dateOptions.count > 1 ||
-                urlOptions.count > 1
-
-            if missingTitle || missingVenue || missingDates || hasMultipleCandidates {
-                showReviewSheet = true
-            }
+            draft.applyPosterAppearance(from: image)
+            applyCandidates(from: result)
             isAIAnalyzing = false
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
             if usedAI {
-                if let venuePOI = result.venuePOI, !venuePOI.isEmpty {
-                    print("🤖 AI venue_poi: \"\(venuePOI)\"")
-                    await autoResolveAddress(from: venuePOI)
-                } else if let firstVenue = result.venueCandidates.first {
-                    print("🤖 AI venue candidate: \"\(firstVenue)\"")
-                    await autoResolveAddress(from: firstVenue)
-                } else {
-                    print("🤖 AI venue candidate: <empty>")
+                if let venue = result.venuePOI ?? result.venueCandidates.first {
+                    await draft.autoResolveAddress(from: venue)
                 }
-            } else if addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      let firstVenue = result.venueCandidates.first,
-                      !firstVenue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                await autoResolveAddress(from: firstVenue)
-            }
-
-            if usedAI {
-                if let schedule = result.schedule {
-                    scheduleOpenTime = schedule.openTime
-                    scheduleCloseTime = schedule.closeTime
-                    scheduleLastEntryTime = schedule.lastEntryTime
-                    scheduleClosedWeekdays = schedule.closedWeekdays
-                    scheduleHolidayHandling = schedule.holidayHandling
-                    scheduleClosedDateRules = schedule.closedDateRules
-                    scheduleOpenDateRules = schedule.openDateRules.filter { rule in
-                        if case .date = rule.rule { return true }
-                        return false
-                    }
-                    scheduleSpecialOpenings = schedule.specialOpenings
-                } else {
-                    scheduleOpenTime = nil
-                    scheduleCloseTime = nil
-                    scheduleLastEntryTime = nil
-                    scheduleClosedWeekdays = []
-                    scheduleHolidayHandling = nil
-                    scheduleClosedDateRules = []
-                    scheduleOpenDateRules = []
-                    scheduleSpecialOpenings = []
-                }
-                if let fees = result.admissionFees, !fees.isEmpty {
-                    admissionFees = fees
-                }
-                if let reservation = result.reservationRequired {
-                    reservationRequired = reservation
-                }
+                applyDetailedExtraction(result)
+            } else if let venue = result.venueCandidates.first {
+                await draft.autoResolveAddress(from: venue)
             }
         } catch {
             isAIAnalyzing = false
-            isExtracting = false
             ocrAlertMessage = "ポスターの文字認識に失敗しました：\(error.localizedDescription)"
             showOcrAlert = true
         }
     }
 
-    private func checkFoundationModelAvailability() {
-        guard #available(iOS 26.0, *) else { return }
-        let suppressKey = "foundationModelUnavailableDontShow"
-        if UserDefaults.standard.bool(forKey: suppressKey) { return }
-        if !FoundationModelFlyerClassifier.isAvailable,
-           FoundationModelFlyerClassifier.isSupportedButDisabled() {
-            showFoundationModelUnavailableAlert = true
-        }
-    }
-
-    func suppressFoundationModelAlert() {
-        UserDefaults.standard.set(true, forKey: "foundationModelUnavailableDontShow")
-        showFoundationModelUnavailableAlert = false
-        showFoundationModelDontShowWarning = true
-    }
-
     func handlePickedImages(_ images: [UIImage]) async {
         guard !images.isEmpty else { return }
-        if images.count == 1, let first = images.first {
-            await handlePickedImage(first)
+        if images.count == 1, let image = images.first {
+            await handlePickedImage(image)
             return
         }
-        let limited = Array(images.prefix(2))
-        guard let combined = FlyerImageService.combineVertically(limited) else {
+        guard let image = FlyerImageService.combineVertically(Array(images.prefix(2))) else {
             ocrAlertMessage = "画像の読み込みに失敗しました。"
             showOcrAlert = true
             return
         }
-        await handlePickedImage(combined)
+        await handlePickedImage(image)
     }
 
     func handleSelectedPhotoItems(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
         defer { selectedItems = [] }
-
         var images: [UIImage] = []
         for item in items.prefix(2) {
-            if let image = await item.loadUIImage() {
-                images.append(image)
-            }
+            if let image = await item.loadUIImage() { images.append(image) }
         }
-
         guard !images.isEmpty else {
             ocrAlertMessage = "画像の読み込みに失敗しました。"
             showOcrAlert = true
@@ -421,120 +137,89 @@ final class ExhibitionFormViewModel {
     }
 
     func makeExhibition() -> Exhibition {
-        let exhibition = Exhibition(
-            title: title,
-            venue: venue,
-            address: addressLine.trimmingCharacters(in: .whitespacesAndNewlines),
-            startDate: startDate,
-            endDate: endDate,
-            url: urlString.normalizedWebURL(),
-            catalogTotalCount: Int(catalogTotalCountStr.trimmingCharacters(in: .whitespacesAndNewlines))
-        )
-        exhibition.scheduleOpenTime = scheduleOpenTime
-        exhibition.scheduleCloseTime = scheduleCloseTime
-        exhibition.scheduleLastEntryTime = scheduleLastEntryTime
-        exhibition.scheduleClosedWeekdays = scheduleClosedWeekdays.map(\.rawValue)
-        exhibition.scheduleHolidayHandling = scheduleHolidayHandling.map(Self.holidayHandlingRawValue)
-        exhibition.scheduleClosedDateRules = scheduleClosedDateRules.map { $0.toRecord() }
-        exhibition.scheduleOpenDateRules = scheduleOpenDateRules.map { $0.toRecord() }
-        exhibition.scheduleSpecialOpenings = scheduleSpecialOpenings.map { $0.toRecord() }
-        exhibition.admissionFeeRules = admissionFees
-        exhibition.reservationRequired = reservationRequired
-        exhibition.posterThumbData = posterThumbData
-
-        if let coordinate = tempCoordinate {
-            exhibition.setCoordinate(coordinate)
-        }
-        if let color = pickedColor.map(UIColor.init) ?? autoColor {
-            exhibition.setColor(color)
-        }
-        return exhibition
+        draft.makeExhibition()
     }
 
-    func autoResolveAddress(from venue: String) async {
-        let trimmed = venue.trimmingCharacters(in: .whitespacesAndNewlines)
-        print("📍 autoResolveAddress start: \"\(trimmed)\"")
-        guard !trimmed.isEmpty else { return }
-        guard addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("📍 address already filled, skip auto resolve")
-            return
-        }
+    func suppressFoundationModelAlert() {
+        UserDefaults.standard.set(true, forKey: "foundationModelUnavailableDontShow")
+        showFoundationModelUnavailableAlert = false
+        showFoundationModelDontShowWarning = true
+    }
 
-        if let result = try? await VenueGeocodingService.geocodeWithAddress(trimmed) {
-            if addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let addr = result.address, !addr.isEmpty {
-                addressLine = addr
-                print("📍 auto address filled: \"\(addr)\"")
-            } else {
-                print("📍 auto address not filled (no addr or already set)")
+    private func applyCandidates(from result: FlyerExtractionResult) {
+        titleOptions = result.titleCandidates
+        venueOptions = result.venueCandidates
+        dateOptions = result.dateCandidates
+        urlOptions = result.urlCandidates
+
+        if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let title = result.titleCandidates.first {
+            draft.title = title
+        }
+        if draft.venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let venue = result.venueCandidates.first {
+            draft.venue = venue
+        }
+        if !draft.hasManuallyEditedDates, let period = result.dateCandidates.first {
+            draft.isApplyingAutoDates = true
+            draft.startDate = period.0
+            draft.endDate = period.1
+            draft.isApplyingAutoDates = false
+        }
+        if draft.urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let url = result.urlCandidates.first {
+            draft.urlString = url
+        }
+        selectedURL = draft.urlString.isEmpty ? nil : draft.urlString
+
+        let isMissingRequiredValue = draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            draft.venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            dateOptions.isEmpty
+        let hasMultipleCandidates = [titleOptions.count, venueOptions.count, dateOptions.count, urlOptions.count]
+            .contains { $0 > 1 }
+        if isMissingRequiredValue || hasMultipleCandidates {
+            showReviewSheet = true
+        }
+    }
+
+    private func applyDetailedExtraction(_ result: FlyerExtractionResult) {
+        if let schedule = result.schedule {
+            draft.scheduleOpenTime = schedule.openTime
+            draft.scheduleCloseTime = schedule.closeTime
+            draft.scheduleLastEntryTime = schedule.lastEntryTime
+            draft.scheduleClosedWeekdays = schedule.closedWeekdays
+            draft.scheduleHolidayHandling = schedule.holidayHandling
+            draft.scheduleClosedDateRules = schedule.closedDateRules
+            draft.scheduleOpenDateRules = schedule.openDateRules.filter {
+                if case .date = $0.rule { return true }
+                return false
             }
-            if tempCoordinate == nil {
-                tempCoordinate = result.coordinate
-                previewRegion.center = result.coordinate
-                previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            } else {
-                print("📍 coordinate already set, skip update")
-            }
+            draft.scheduleSpecialOpenings = schedule.specialOpenings
         } else {
-            print("📍 geocodeWithAddress returned nil")
+            draft.scheduleOpenTime = nil
+            draft.scheduleCloseTime = nil
+            draft.scheduleLastEntryTime = nil
+            draft.scheduleClosedWeekdays = []
+            draft.scheduleHolidayHandling = nil
+            draft.scheduleClosedDateRules = []
+            draft.scheduleOpenDateRules = []
+            draft.scheduleSpecialOpenings = []
         }
+        if let fees = result.admissionFees, !fees.isEmpty { draft.admissionFees = fees }
+        if let reservation = result.reservationRequired { draft.reservationRequired = reservation }
     }
 
-    func triggerGeocoding() {
-        Task {
-            let v = venue.trimmingCharacters(in: .whitespaces)
-            guard !v.isEmpty else { return }
-            if let c = try? await VenueGeocodingService.geocode(v) {
-                tempCoordinate = c
-                previewRegion.center = c
-                previewRegion.span = .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            }
-        }
+    private func checkFoundationModelAvailability() {
+        guard #available(iOS 26.0, *),
+              !UserDefaults.standard.bool(forKey: "foundationModelUnavailableDontShow"),
+              !FoundationModelFlyerClassifier.isAvailable,
+              FoundationModelFlyerClassifier.isSupportedButDisabled()
+        else { return }
+        showFoundationModelUnavailableAlert = true
     }
 
-    private func buildDraftSpecialOpenings() -> [SpecialOpening] {
-        let open = draftSpecialOpeningOpenTime
-        let close = draftSpecialOpeningCloseTime
-        let last = draftSpecialOpeningLastEntryTime
-        switch specialOpeningMode {
-        case .date:
-            return [
-                SpecialOpening(rule: .date(draftSpecialOpeningDate),
-                               openTime: open,
-                               closeTime: close,
-                               lastEntryTime: last,
-                               note: nil)
-            ]
-        case .weekday:
-            let weekdays = draftSpecialOpeningWeekdays.sorted { $0.calendarValue < $1.calendarValue }
-            return weekdays.map { weekday in
-                SpecialOpening(rule: .weekday(weekday),
-                               openTime: open,
-                               closeTime: close,
-                               lastEntryTime: last,
-                               note: nil)
-            }
-        case .range:
-            let start = min(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
-            let end = max(draftSpecialOpeningStartDate, draftSpecialOpeningEndDate)
-            return [
-                SpecialOpening(rule: .range(start: start, end: end),
-                               openTime: open,
-                               closeTime: close,
-                               lastEntryTime: last,
-                               note: nil)
-            ]
-        }
-    }
-
-    private static func holidayHandlingRawValue(_ value: HolidayHandling) -> String {
-        switch value {
-        case .none:
-            return "NONE"
-        case .openOnHoliday:
-            return "OPEN_ON_HOLIDAY"
-        case .openOnHolidayCloseNextWeekday:
-            return "OPEN_ON_HOLIDAY_CLOSE_NEXT_WEEKDAY"
-        }
+    private func showPDFError() {
+        ocrAlertMessage = "PDFの読み込みに失敗しました。"
+        showOcrAlert = true
     }
 }

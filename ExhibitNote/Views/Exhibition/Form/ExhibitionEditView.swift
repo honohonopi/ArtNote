@@ -21,55 +21,56 @@ struct ExhibitionEditView: View {
     }
     
     var body: some View {
+        @Bindable var draft = vm.draft
         NavigationStack {
             Form {
                 BasicInfoSectionView(
-                    title: $vm.title,
-                    venue: $vm.venue,
-                    addressLine: $vm.addressLine,
-                    startDate: $vm.startDate,
-                    endDate: $vm.endDate,
-                    urlString: $vm.urlString,
+                    title: $draft.title,
+                    venue: $draft.venue,
+                    addressLine: $draft.addressLine,
+                    startDate: $draft.startDate,
+                    endDate: $draft.endDate,
+                    urlString: $draft.urlString,
                     isAIAnalyzing: false,
                     isExtracting: false,
-                    isApplyingAutoDates: vm.isApplyingAutoDates,
-                    hasManuallyEditedDates: $vm.hasManuallyEditedDates,
-                    onVenueSubmit: vm.triggerGeocoding,
-                    onTapMap: vm.prepareMapPicker
+                    isApplyingAutoDates: draft.isApplyingAutoDates,
+                    hasManuallyEditedDates: $draft.hasManuallyEditedDates,
+                    onVenueSubmit: draft.triggerGeocoding,
+                    onTapMap: draft.prepareMapPicker
                 )
                 AdmissionInfoSectionView(
-                    showAdmissionFees: $vm.showAdmissionFees,
-                    admissionFees: $vm.admissionFees,
-                    reservationRequired: $vm.reservationRequired,
+                    showAdmissionFees: $draft.showAdmissionFees,
+                    admissionFees: $draft.admissionFees,
+                    reservationRequired: $draft.reservationRequired,
                     isAIAnalyzing: false,
-                    admissionPriceText: vm.admissionPriceText,
-                    reservationStatusText: vm.reservationStatusText,
-                    onAddFee: vm.beginAddingAdmissionFee,
-                    onEditFee: vm.beginEditingAdmissionFee
+                    admissionPriceText: draft.admissionPriceText,
+                    reservationStatusText: draft.reservationStatusText,
+                    onAddFee: draft.beginAddingAdmissionFee,
+                    onEditFee: draft.beginEditingAdmissionFee
                 )
                 ScheduleSectionView(isAIAnalyzing: false) {
                     ScheduleEditorListView(
-                        scheduleOpenTime: $vm.scheduleOpenTime,
-                        scheduleCloseTime: $vm.scheduleCloseTime,
-                        scheduleLastEntryTime: $vm.scheduleLastEntryTime,
-                        scheduleClosedWeekdays: $vm.scheduleClosedWeekdays,
-                        scheduleHolidayHandling: $vm.scheduleHolidayHandling,
-                        scheduleClosedDateRules: $vm.scheduleClosedDateRules,
-                        scheduleOpenDateRules: $vm.scheduleOpenDateRules,
-                        scheduleSpecialOpenings: $vm.scheduleSpecialOpenings,
-                        onAddSpecialOpening: vm.beginAddingSpecialOpening,
-                        onEditSpecialOpening: vm.beginEditingSpecialOpening
+                        scheduleOpenTime: $draft.scheduleOpenTime,
+                        scheduleCloseTime: $draft.scheduleCloseTime,
+                        scheduleLastEntryTime: $draft.scheduleLastEntryTime,
+                        scheduleClosedWeekdays: $draft.scheduleClosedWeekdays,
+                        scheduleHolidayHandling: $draft.scheduleHolidayHandling,
+                        scheduleClosedDateRules: $draft.scheduleClosedDateRules,
+                        scheduleOpenDateRules: $draft.scheduleOpenDateRules,
+                        scheduleSpecialOpenings: $draft.scheduleSpecialOpenings,
+                        onAddSpecialOpening: draft.beginAddingSpecialOpening,
+                        onEditSpecialOpening: draft.beginEditingSpecialOpening
                     )
                 }
                 ColorSelectionSectionView(
-                    pickedColor: $vm.pickedColor,
-                    autoColor: $vm.autoColor
+                    pickedColor: $draft.pickedColor,
+                    autoColor: $draft.autoColor
                 )
                 Section("ポスター") {
                     HStack(spacing: 12) {
                         ExhibitionPosterPreviewView(
-                            data: vm.posterThumbData,
-                            fallbackColor: vm.pickedColor ?? .gray
+                            data: draft.posterThumbData,
+                            fallbackColor: draft.pickedColor ?? .gray
                         )
                         .overlay(
                             Group {
@@ -95,7 +96,7 @@ struct ExhibitionEditView: View {
                                     Label("カメラで撮る", systemImage: "camera.viewfinder")
                                 }
                             }
-                            if vm.posterThumbData != nil {
+                            if draft.posterThumbData != nil {
                                 Button(role: .destructive, action: vm.removePoster) {
                                     Label("ポスターを削除", systemImage: "trash")
                                 }
@@ -121,36 +122,36 @@ struct ExhibitionEditView: View {
                     }
                 }
             }
-            .sheet(isPresented: $vm.showMapPicker) {
-                MapPickerView(seed: vm.tempCoordinate) { pickedCoord, pickedAddress in
-                    vm.applyMapSelection(coordinate: pickedCoord, address: pickedAddress)
+            .sheet(isPresented: $draft.showMapPicker) {
+                MapPickerView(seed: draft.tempCoordinate) { pickedCoord, pickedAddress in
+                    draft.applyMapSelection(coordinate: pickedCoord, address: pickedAddress)
                 }
             }
-            .sheet(isPresented: $vm.showSpecialOpeningEditor) {
+            .sheet(isPresented: $draft.showSpecialOpeningEditor) {
                 SpecialOpeningEditorSheetView(
-                    editingSpecialOpeningIndex: $vm.editingSpecialOpeningIndex,
-                    showSpecialOpeningEditor: $vm.showSpecialOpeningEditor,
-                    specialOpeningMode: $vm.specialOpeningMode,
-                    draftSpecialOpeningDate: $vm.draftSpecialOpeningDate,
-                    draftSpecialOpeningStartDate: $vm.draftSpecialOpeningStartDate,
-                    draftSpecialOpeningEndDate: $vm.draftSpecialOpeningEndDate,
-                    draftSpecialOpeningWeekdays: $vm.draftSpecialOpeningWeekdays,
-                    draftSpecialOpeningOpenTime: $vm.draftSpecialOpeningOpenTime,
-                    draftSpecialOpeningCloseTime: $vm.draftSpecialOpeningCloseTime,
-                    draftSpecialOpeningLastEntryTime: $vm.draftSpecialOpeningLastEntryTime,
-                    onToggleWeekday: vm.toggleDraftWeekday,
-                    onCommit: vm.commitDraftSpecialOpening
+                    editingSpecialOpeningIndex: $draft.editingSpecialOpeningIndex,
+                    showSpecialOpeningEditor: $draft.showSpecialOpeningEditor,
+                    specialOpeningMode: $draft.specialOpeningMode,
+                    draftSpecialOpeningDate: $draft.draftSpecialOpeningDate,
+                    draftSpecialOpeningStartDate: $draft.draftSpecialOpeningStartDate,
+                    draftSpecialOpeningEndDate: $draft.draftSpecialOpeningEndDate,
+                    draftSpecialOpeningWeekdays: $draft.draftSpecialOpeningWeekdays,
+                    draftSpecialOpeningOpenTime: $draft.draftSpecialOpeningOpenTime,
+                    draftSpecialOpeningCloseTime: $draft.draftSpecialOpeningCloseTime,
+                    draftSpecialOpeningLastEntryTime: $draft.draftSpecialOpeningLastEntryTime,
+                    onToggleWeekday: draft.toggleDraftWeekday,
+                    onCommit: draft.commitDraftSpecialOpening
                 )
             }
-            .sheet(isPresented: $vm.showAdmissionFeeEditor) {
+            .sheet(isPresented: $draft.showAdmissionFeeEditor) {
                 AdmissionFeeEditorSheetView(
-                    editingAdmissionFeeIndex: $vm.editingAdmissionFeeIndex,
-                    showAdmissionFeeEditor: $vm.showAdmissionFeeEditor,
-                    draftAdmissionLabel: $vm.draftAdmissionLabel,
-                    draftAdmissionPriceText: $vm.draftAdmissionPriceText,
-                    draftAdmissionNote: $vm.draftAdmissionNote,
-                    canSaveAdmissionFee: vm.canSaveAdmissionFee,
-                    onCommit: vm.commitAdmissionFee
+                    editingAdmissionFeeIndex: $draft.editingAdmissionFeeIndex,
+                    showAdmissionFeeEditor: $draft.showAdmissionFeeEditor,
+                    draftAdmissionLabel: $draft.draftAdmissionLabel,
+                    draftAdmissionPriceText: $draft.draftAdmissionPriceText,
+                    draftAdmissionNote: $draft.draftAdmissionNote,
+                    canSaveAdmissionFee: draft.canSaveAdmissionFee,
+                    onCommit: draft.commitAdmissionFee
                 )
             }
         }
