@@ -12,41 +12,23 @@ struct HomeNearbySectionView: View {
     let onSelectExhibition: (String) -> Void
 
     @State private var selectedPinID: String?
-    @State private var mapRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 35.6812, longitude: 139.7671),
-        span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
-    )
+    @State private var mapRegion = HomeNearbyMapDataBuilder.defaultRegion
 
-    private let displayLimit = 5
+    private let mapDataBuilder = HomeNearbyMapDataBuilder()
 
-    private var pins: [NearbyMapPin] {
-        var pins: [NearbyMapPin] = []
-        if let coordinate = location?.coordinate {
-            pins.append(NearbyMapPin(id: "here", coordinate: coordinate, title: "現在地", isHere: true))
-        }
-        for (exhibition, _) in items.prefix(displayLimit) {
-            if let coordinate = exhibition.coordinate {
-                pins.append(NearbyMapPin(
-                    id: exhibition.id,
-                    coordinate: coordinate,
-                    title: exhibition.title,
-                    isHere: false
-                ))
-            }
-        }
-        return pins
-    }
-
-    private var spanForRadius: MKCoordinateSpan {
-        let degrees = max(nearbyRadiusKm / 111.0, 0.02)
-        return MKCoordinateSpan(latitudeDelta: degrees, longitudeDelta: degrees)
+    private var mapData: HomeNearbyMapDataBuilder.MapData {
+        mapDataBuilder.build(
+            location: location,
+            items: items,
+            radiusKm: nearbyRadiusKm
+        )
     }
 
     var body: some View {
         Section {
             if (authorization == .authorizedAlways || authorization == .authorizedWhenInUse),
-               !pins.isEmpty {
-                NearbyMiniMapView(region: $mapRegion, pins: pins, selectedPinID: $selectedPinID)
+               !mapData.pins.isEmpty {
+                NearbyMiniMapView(region: $mapRegion, pins: mapData.pins, selectedPinID: $selectedPinID)
                     .aspectRatio(1, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
@@ -56,7 +38,7 @@ struct HomeNearbySectionView: View {
                 if items.isEmpty {
                     ContentUnavailableView("近くで開催中の展示はありません", systemImage: "mappin.and.ellipse")
                 } else {
-                    ForEach(Array(items.prefix(displayLimit)), id: \.0.id) { ex, km in
+                    ForEach(Array(items.prefix(HomeNearbyMapDataBuilder.displayLimit)), id: \.0.id) { ex, km in
                         NavigationLink {
                             ExhibitionDetailView(exhibition: ex)
                         } label: {
@@ -105,11 +87,11 @@ struct HomeNearbySectionView: View {
         .onChange(of: location, initial: true) {
             if let coordinate = location?.coordinate {
                 mapRegion.center = coordinate
-                mapRegion.span = spanForRadius
+                mapRegion.span = mapData.span
             }
         }
         .onChange(of: nearbyRadiusKm) {
-            mapRegion.span = spanForRadius
+            mapRegion.span = mapData.span
         }
         .onChange(of: selectedPinID) {
             guard let selectedPinID, selectedPinID != "here" else { return }
